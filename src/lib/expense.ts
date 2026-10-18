@@ -58,6 +58,7 @@ const baseExpenseSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시각을 확인해 주세요.").nullable(),
   useKind: z.enum(["once", "period"]),
   useDate: dateSchema,
+  useTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "이용 시각을 확인해 주세요.").nullable().default(null),
   useEnd: dateSchema.nullable(),
   allocation: z.enum(["start", "annual"]),
   shared: z.boolean(),
@@ -103,7 +104,7 @@ export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => 
 export type Expense = ExpenseInput & { id: string; revision: number; createdAt: string; updatedAt: string };
 export const expenseSchema = expenseInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
 export function newExpense(date: string): ExpenseInput {
-  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
+  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useTime: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
 }
 export function receiptSummary(value: ExpenseInput) {
   const currency = value.receiptCurrency;
@@ -133,6 +134,17 @@ export function ownKrw(value: ExpenseInput): number | null {
 }
 export function appearsOnDay(value: ExpenseInput, date: string): boolean {
   return value.paymentDate === date || (value.useKind === "once" && value.useDate === date);
+}
+// 이용일에는 이용 시각을, 결제 기록으로만 나타난 날에는 결제 시각을 씁니다.
+export function dayTime(value: ExpenseInput, date: string): string | null {
+  return value.useKind === "once" && value.useDate === date ? value.useTime ?? null : value.time;
+}
+export function dailyExpenses(values: readonly Expense[], date: string): Expense[] {
+  return values.filter((value) => appearsOnDay(value, date)).sort((a, b) => {
+    const left = dayTime(a, date), right = dayTime(b, date);
+    if (left !== right) return left === null ? 1 : right === null ? -1 : left.localeCompare(right);
+    return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+  });
 }
 export function daySummary(values: Expense[], date: string) {
   const consumption = values.filter((value) => value.useKind === "once" && value.useDate === date);

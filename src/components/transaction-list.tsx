@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
-import { categories, formatMoney, formatMinor, ownMinor, type Expense } from "@/lib/expense";
+import { categories, dayTime, formatMoney, formatMinor, ownMinor, type Expense } from "@/lib/expense";
 
 export function TransactionList({ transactions, date }: { transactions: readonly Expense[]; date: string }) {
   if (!transactions.length) {
@@ -21,7 +21,7 @@ export function TransactionList({ transactions, date }: { transactions: readonly
           <Image src={category.image} alt="" width={80} height={80} className="h-16 w-16 object-contain sm:h-20 sm:w-20" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="mb-1 text-xs text-muted-foreground">{category.label}<span className="mx-2" aria-hidden="true">·</span>{transaction.time ?? "시각 미확인"}</p>
+          <p className="mb-1 text-xs text-muted-foreground">{category.label}<span className="mx-2" aria-hidden="true">·</span>{transaction.useKind === "once" && transaction.useDate === date ? "이용 " : "결제 "}{dayTime(transaction, date) ?? "시각 미확인"}</p>
           <h3 className="text-sm font-semibold sm:text-base">{transaction.title}</h3>
           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{transaction.paymentMethod}</p>
           {transaction.useKind === "period" ? <p className="mt-1 text-xs text-primary">기간형 결제 · 월간 반영</p> : transaction.useDate !== date ? <p className="mt-1 text-xs text-primary">결제 기록 · 소비는 {transaction.useDate}</p> : null}

@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expenseInputSchema, expenseSchema, toMinor, receiptSummary, ownKrw, daySummary, monthAmount, appearsOnDay } from "./expense";
+import { expenseInputSchema, expenseSchema, toMinor, receiptSummary, ownKrw, daySummary, monthAmount, appearsOnDay, dailyExpenses, dayTime } from "./expense";
 import { seedExpenses } from "./seed-expenses";
 import { createExpenseRepository } from "./expense-repository";
 
@@ -59,9 +59,10 @@ test("저장 재개·동시 쓰기·재시도·오래된 수정·손상 파일 �
   try {
     const file = path.join(folder, "ledger.json");
     const repository = createExpenseRepository(file);
-    const input = expenseInputSchema.parse(seedExpenses[0]);
+    const input = expenseInputSchema.parse({ ...seedExpenses[0], useTime: "09:15" });
     await Promise.all([repository.save(input, "test-a", null), repository.save(input, "test-b", null)]);
     assert.equal((await createExpenseRepository(file).list()).length, 8);
+    assert.equal((await createExpenseRepository(file).list()).find((e) => e.id === "test-a")?.useTime, "09:15");
     assert.equal((await repository.save(input, "test-a", null)).length, 8);
     await assert.rejects(repository.save({ ...input, title: "changed" }, "test-a", null), { status: 409 });
     await repository.save({ ...input, title: "changed" }, "test-a", 1);
@@ -71,4 +72,28 @@ test("저장 재개·동시 쓰기·재시도·오래된 수정·손상 파일 �
     await assert.rejects(repository.save(input, "test-c", null), { status: 500 });
     assert.equal(await readFile(file, "utf8"), "broken");
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+test("이용 시각은 독립적으로 검증하고 이전 기록은 미확인으로 읽는다", () => {
+  const legacy = { ...seedExpenses[0], useTime: undefined };
+  assert.equal(expenseSchema.parse(legacy).useTime, null);
+  assert.equal(expenseSchema.parse({ ...legacy, useTime: "00:00" }).useTime, "00:00");
+  assert.equal(expenseSchema.safeParse({ ...legacy, useTime: "24:00" }).success, false);
+  assert.equal(expenseSchema.safeParse({ ...legacy, useTime: "12:60" }).success, false);
+  assert.equal(dayTime(expenseSchema.parse(legacy), "2026-10-18"), null);
+});
+test("이용 시각으로 정렬하고 미확인은 마지막, 결제일만 일치하면 결제 시각을 쓴다", () => {
+  const base = seedExpenses[0];
+  const input = [
+    { ...base, id: "unknown", useTime: null, time: "00:00" },
+    { ...base, id: "late", useTime: "18:30", time: "01:00" },
+    { ...base, id: "early", useTime: "09:00", time: "23:00" },
+    { ...base, id: "payment-only", useDate: "2026-10-17", useTime: "22:00", time: "12:00" },
+    { ...base, id: "midnight", useTime: "00:00" },
+  ];
+  assert.deepEqual(dailyExpenses(input, "2026-10-18").map((e) => e.id), ["midnight", "early", "payment-only", "late", "unknown"]);
+  assert.equal(input[0].id, "unknown");
+  assert.deepEqual(dailyExpenses(input, "2026-10-19"), []);
+  const tied = [{ ...base, id: "b", useTime: "09:00" }, { ...base, id: "a", useTime: "09:00" }];
+  assert.deepEqual(dailyExpenses(tied, "2026-10-18").map((e) => e.id), ["a", "b"]);
 });

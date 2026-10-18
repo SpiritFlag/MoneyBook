@@ -52,5 +52,5 @@ export function createExpenseRepository(file: string) {
 }
 
 // HMR로 모듈이 다시 로드되어도 이 로컬 서버의 쓰기 큐를 유지합니다.
-const runtime = globalThis as typeof globalThis & { moneybookRepository?: ReturnType<typeof createExpenseRepository> };
-export const expenseRepository = runtime.moneybookRepository ??= createExpenseRepository(path.join(process.cwd(), ".local", "demo-ledger-v1.json"));
+const runtime = globalThis as typeof globalThis & { moneybookRepositoryV2?: ReturnType<typeof createExpenseRepository> };
+export const expenseRepository = runtime.moneybookRepositoryV2 ??= createExpenseRepository(path.join(process.cwd(), ".local", "demo-ledger-v1.json"));

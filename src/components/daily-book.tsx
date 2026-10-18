@@ -6,7 +6,7 @@ import { TransactionList } from "@/components/transaction-list";
 import { Button } from "@/components/ui/button";
 import { parseDateQuery } from "@/lib/date";
 import Link from "next/link";
-import { appearsOnDay, daySummary, formatMinor } from "@/lib/expense";
+import { dailyExpenses, daySummary, formatMinor } from "@/lib/expense";
 import { useExpenses } from "@/lib/use-expenses";
 import { DemoNotice, LedgerState } from "./ledger-state";
 
@@ -20,7 +20,7 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
     window.history.replaceState(null, "", `/?${query.toString()}`);
   }
   const { data, error, mutate } = useExpenses();
-  const transactions = (data ?? []).filter((item) => appearsOnDay(item, date));
+  const transactions = dailyExpenses(data ?? [], date);
   const { total, pending } = daySummary(data ?? [], date);
 
   return <>
@@ -31,7 +31,7 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
     <section aria-label="선택한 날짜의 내역" className="book-sheet rounded-3xl bg-card pb-0.5">
       <div className="daily-summary relative flex flex-wrap items-end justify-between gap-5 rounded-t-3xl px-5 py-7 sm:px-8 sm:py-8">
         <span aria-hidden="true" className="absolute top-0 left-8 h-1 w-10 rounded-b-full bg-primary/45" />
-        <div className="min-w-0"><p className="mb-2 text-[11px] font-medium tracking-[0.16em] text-primary/80">나의 하루</p><DateNavigator date={date} onDateChange={setDate} /><p className="mt-2 text-sm text-muted-foreground">거래 기록 {transactions.length}건</p></div>
+        <div className="min-w-0"><p className="mb-2 text-[11px] font-medium tracking-[0.16em] text-primary/80">나의 하루</p><DateNavigator date={date} onDateChange={setDate} /><p className="mt-2 text-sm text-muted-foreground">거래 기록 {transactions.length}건 · 이른 시각부터</p></div>
         <div className="ml-auto text-right" aria-live="polite" aria-atomic="true"><p className="mb-2 text-xs text-muted-foreground">하루 소비</p><p className="text-3xl font-bold tracking-tight text-primary tabular-nums sm:text-4xl">{data ? formatMinor(total, "KRW") : "—"}</p></div>
       </div>
       {!data ? <LedgerState error={error} retry={() => { void mutate(); }} /> : <TransactionList transactions={transactions} date={date} />}
