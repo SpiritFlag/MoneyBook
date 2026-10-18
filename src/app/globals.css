@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/* 머니북의 공통 색상. 여기서 바꾸면 버튼과 화면에 함께 반영됩니다. */
+:root {
+  --background: #f7f7f0;
+  --foreground: #303c33;
+  --card: #fffdf7;
+  --card-foreground: #303c33;
+  --primary: #296b53;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf0e5;
+  --secondary-foreground: #345b48;
+  --muted: #eeefe7;
+  --muted-foreground: #647060;
+  --accent: #eaf0e5;
+  --accent-foreground: #296b53;
+  --destructive: #b33838;
+  --border: #e2e6d9;
+  --input: #cdd5c7;
+  --ring: #296b53;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; font-family: "Segoe UI", "Malgun Gothic", sans-serif; }
+  button, a, input { -webkit-tap-highlight-color: transparent; }
+  button:not(:disabled), summary { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+}

@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { parseDateParts, shiftDate } from "./date";
+import { getDailyTransactions, sumPersonalSpending } from "./demo-transactions";
+
+test("존재하는 날짜만 확정하고 입력 도중 값은 거절한다", () => {
+  assert.equal(parseDateParts("2026", "2", "31"), null);
+  assert.equal(parseDateParts("2026", "2", "29"), null);
+  assert.equal(parseDateParts("2028", "2", "29"), "2028-02-29");
+  assert.equal(parseDateParts("2026", "", "1"), null);
+  assert.equal(parseDateParts("2026", "1.5", "1"), null);
+  assert.equal(parseDateParts("2026", "0", "1"), null);
+  assert.equal(parseDateParts("2026", "10", "18"), "2026-10-18");
+});
+
+test("월말·연말 이동과 날짜 범위 경계를 지킨다", () => {
+  assert.equal(shiftDate("2026-01-01", -1), "2025-12-31");
+  assert.equal(shiftDate("2028-03-01", -1), "2028-02-29");
+  assert.equal(shiftDate("2026-12-31", 1), "2027-01-01");
+  assert.equal(shiftDate("1900-01-01", -1), "1900-01-01");
+  assert.equal(shiftDate("9999-12-31", 1), "9999-12-31");
+});
+
+test("결제 전체액 대신 본인 부담액을 합산하고 빈 날짜는 0이다", () => {
+  assert.equal(sumPersonalSpending(getDailyTransactions("2026-10-18")), 19500);
+  assert.equal(sumPersonalSpending(getDailyTransactions("2026-10-17")), 1500);
+  assert.equal(sumPersonalSpending(getDailyTransactions("2026-10-16")), 0);
+});
