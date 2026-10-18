@@ -1,7 +1,8 @@
-import { ExpenseForm } from "@/components/expense-form";
+import { ExpenseCreate } from "@/components/expense-create";
 import { parseDateQuery, todayInSeoul } from "@/lib/date";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "지출 기록 · 머니북" };
-export default async function Page({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  return <ExpenseForm date={parseDateQuery((await searchParams).date ?? null) ?? todayInSeoul()} />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ date?: string; asset?: string }> }) {
+  const query = await searchParams;
+  return <ExpenseCreate date={parseDateQuery(query.date ?? null) ?? todayInSeoul()} assetId={query.asset} />;
 }

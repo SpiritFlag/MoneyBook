@@ -53,6 +53,7 @@ const baseExpenseSchema = z.object({
   currency: z.enum(["KRW", "USD", "EUR", "JPY", "MCASH", "RC"]),
   paidAmount: moneySchema,
   paymentMethod: z.string().trim().min(1, "결제수단을 입력해 주세요.").max(80),
+  assetId: z.string().min(1).max(80).nullable().default(null),
   paymentKind: z.enum(["card", "account", "cash", "stored"]),
   paymentDate: dateSchema,
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시각을 확인해 주세요.").nullable(),
@@ -104,7 +105,7 @@ export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => 
 export type Expense = ExpenseInput & { id: string; revision: number; createdAt: string; updatedAt: string };
 export const expenseSchema = expenseInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
 export function newExpense(date: string): ExpenseInput {
-  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useTime: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
+  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", assetId: null, paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useTime: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
 }
 export function receiptSummary(value: ExpenseInput) {
   const currency = value.receiptCurrency;

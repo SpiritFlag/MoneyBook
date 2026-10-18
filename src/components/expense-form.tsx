@@ -9,11 +9,14 @@ import { Field, FormSection } from "@/components/form-fields";
 import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
 import { categories, currencies, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
+import { useAssets } from "@/lib/use-assets";
+import type { Asset } from "@/lib/asset";
 import { ledgerKey, saveExpense } from "@/lib/use-expenses";
 
-export function ExpenseForm({ date, existing }: { date: string; existing?: Expense }) {
+export function ExpenseForm({ date, existing, initialAsset }: { date: string; existing?: Expense; initialAsset?: Asset }) {
   const router = useRouter();
-  const [value, setValue] = useState<ExpenseInput>(() => existing ? structuredClone(existing) : newExpense(date));
+  const assets = useAssets();
+  const [value, setValue] = useState<ExpenseInput>(() => existing ? structuredClone(existing) : initialAsset ? { ...newExpense(date), assetId: initialAsset.id, paymentKind: initialAsset.kind, paymentMethod: initialAsset.name, currency: initialAsset.currency, receiptCurrency: initialAsset.currency } : newExpense(date));
   const [revision] = useState(existing?.revision);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -64,15 +67,19 @@ export function ExpenseForm({ date, existing }: { date: string; existing?: Expen
             <div className="mb-6 flex flex-wrap gap-2">{(["once", "period"] as const).map((kind) => <Button type="button" key={kind} variant={value.useKind === kind ? "secondary" : "ghost"} aria-pressed={value.useKind === kind} onClick={() => field("useKind", kind)}>{value.useKind === kind ? <Check size={14} /> : null}{kind === "once" ? "일회성 이용" : "기간형 이용"}</Button>)}</div>
             <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
               <Field label={card ? "카드 승인금액" : "실제 결제 총액"} hint="명세를 바꿔도 이 금액은 자동으로 바뀌지 않아요."><input autoFocus className="form-control amount-input" inputMode="decimal" value={value.paidAmount} placeholder="0" onChange={(e) => field("paidAmount", e.target.value)} /></Field>
-              <Field label="결제 통화·재화"><select className="form-control" value={value.currency} onChange={(e) => { const currency = e.target.value as Currency; change({ ...value, currency, receiptCurrency: value.receiptCurrency === value.currency ? currency : value.receiptCurrency }); }}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
+              <Field label="결제 통화·재화"><select className="form-control" value={value.currency} onChange={(e) => { const currency = e.target.value as Currency; change({ ...value, currency, assetId: null, paymentMethod: value.assetId ? "" : value.paymentMethod, receiptCurrency: value.receiptCurrency === value.currency ? currency : value.receiptCurrency }); }}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_10rem]"><Field label="거래명"><input className="form-control" maxLength={120} placeholder="어디에 쓴 돈인가요?" value={value.title} onChange={(e) => field("title", e.target.value)} /></Field><Field label="카테고리"><select className="form-control" value={value.category} onChange={(e) => field("category", e.target.value as ExpenseInput["category"])}>{Object.entries(categories).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field></div>
           </FormSection>
           <FormSection number="02" title="상품과 명세" description="확인한 내용만 채워도 괜찮아요. 할인은 해당 상품 아래에, 전체 할인·가산은 따로 기록해요."><ReceiptEditor value={value} onChange={change} /></FormSection>
           <FormSection number="03" title="결제수단과 날짜">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="결제 방식"><select className="form-control" value={value.paymentKind} onChange={(e) => field("paymentKind", e.target.value as ExpenseInput["paymentKind"])}><option value="card">신용카드 승인</option><option value="account">계좌·체크카드</option><option value="cash">현금</option><option value="stored">충전 잔액·재화</option></select></Field>
-              <Field label="결제수단·사용 자산"><input className="form-control" list="payment-methods" placeholder="예: 생활 카드, 예시 계좌" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /><datalist id="payment-methods"><option value="예시 카드" /><option value="예시 계좌" /><option value="현금" /><option value="예시 교통카드" /></datalist></Field>
+              <Field label="결제 방식"><select className="form-control" value={value.paymentKind} onChange={(e) => change({ ...value, paymentKind: e.target.value as ExpenseInput["paymentKind"], assetId: null, paymentMethod: value.assetId ? "" : value.paymentMethod })}><option value="card">신용카드 승인</option><option value="account">계좌·체크카드</option><option value="cash">현금</option><option value="stored">충전 잔액·재화</option></select></Field>
+              <Field label={card ? "카드 이름" : "사용 자산"} hint={card ? "신용카드 승인은 자산에서 즉시 출금하지 않아요." : "같은 종류·통화의 자산을 선택하면 원장에 전체 결제액을 반영해요."}>
+                {card ? <input className="form-control" placeholder="예: 생활 카드" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /> : <select className="form-control" disabled={!assets.data || !!assets.error} value={value.assetId ?? ""} onChange={(e) => { const asset = assets.data?.find((a) => a.id === e.target.value); change({ ...value, assetId: asset?.id ?? null, paymentMethod: asset?.name ?? "" }); }}><option value="">자산 연결 없이 기록</option>{(assets.data ?? []).filter((asset) => asset.kind === value.paymentKind && asset.currency === value.currency).map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>}
+              </Field>
+              {!card && !value.assetId ? <Field label="결제수단 이름" hint="자산을 연결하지 않으면 잔액과 원장에는 반영되지 않아요."><input className="form-control" placeholder="예: 예시 계좌" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /></Field> : null}
+              {!card && assets.error ? <p role="alert" className="text-sm text-destructive">자산을 불러오지 못했어요. <button type="button" className="underline" onClick={() => { void assets.mutate(); }}>다시 불러오기</button></p> : null}
               <Field label={card ? "승인일" : "결제일"}><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.paymentDate} onChange={(e) => field("paymentDate", e.target.value)} /></Field>
               <Field label={card ? "승인 시각 (선택)" : "결제 시각 (선택)"} hint="모르면 비워 두세요. 시각 미확인으로 남겨요."><input className="form-control" type="time" value={value.time ?? ""} onChange={(e) => field("time", e.target.value || null)} /></Field>
               <Field label={value.useKind === "period" ? "이용 시작일" : "이용일"} hint="소비가 귀속되는 날짜예요."><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.useDate} onChange={(e) => field("useDate", e.target.value)} /></Field>
