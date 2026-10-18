@@ -33,7 +33,7 @@ export function DateNavigator({ date, onDateChange }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border bg-card p-4 sm:p-5">
+    <div className="pt-2 pb-1">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <form className="flex flex-wrap items-center gap-1.5 sm:gap-2" noValidate onSubmit={(event) => {
           event.preventDefault();
@@ -53,7 +53,7 @@ export function DateNavigator({ date, onDateChange }: Props) {
                 inputMode="numeric" maxLength={field.length} value={field.value}
                 onChange={(event) => { field.set(event.target.value); setError(""); }}
                 onFocus={(event) => event.target.select()}
-                className={`h-10 rounded-lg border border-input bg-background text-center text-base font-medium text-foreground tabular-nums ${field.length === 4 ? "w-16 sm:w-18" : "w-10 sm:w-12"}`}
+                className={`date-field h-10 rounded-lg border-0 text-center text-base font-medium text-foreground tabular-nums ${field.length === 4 ? "w-16 sm:w-18" : "w-10 sm:w-12"}`}
               />
               <span aria-hidden="true">{field.suffix}</span>
             </label>
@@ -61,11 +61,11 @@ export function DateNavigator({ date, onDateChange }: Props) {
           <Button type="submit" className="ml-1 px-3">이동</Button>
         </form>
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="icon" aria-label="전날" disabled={date === "1900-01-01"} onClick={() => navigate(shiftDate(date, -1))}><ChevronLeft /></Button>
-          <Button variant="outline" onClick={() => navigate(todayInSeoul())}>오늘</Button>
-          <Button variant="outline" size="icon" aria-label="다음 날" disabled={date === "9999-12-31"} onClick={() => navigate(shiftDate(date, 1))}><ChevronRight /></Button>
+          <Button variant="ghost" size="icon" aria-label="전날" disabled={date === "1900-01-01"} onClick={() => navigate(shiftDate(date, -1))}><ChevronLeft /></Button>
+          <Button variant="secondary" onClick={() => navigate(todayInSeoul())}>오늘</Button>
+          <Button variant="ghost" size="icon" aria-label="다음 날" disabled={date === "9999-12-31"} onClick={() => navigate(shiftDate(date, 1))}><ChevronRight /></Button>
           <details className="relative ml-1">
-            <summary className="flex h-10 list-none items-center gap-2 rounded-lg px-3 text-sm hover:bg-accent [&::-webkit-details-marker]:hidden"><CalendarDays size={17} />달력</summary>
+            <summary className="flex h-10 list-none items-center gap-2 rounded-lg px-3 text-sm transition-colors duration-150 hover:bg-white/80 [&::-webkit-details-marker]:hidden"><CalendarDays size={17} />달력</summary>
             <form className="absolute right-0 z-10 mt-2 w-60 rounded-xl border bg-card p-4 shadow-lg" onSubmit={(event) => {
               event.preventDefault();
               const parts = String(new FormData(event.currentTarget).get("calendarDate")).split("-");

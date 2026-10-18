@@ -2,23 +2,52 @@
 
 /* 머니북의 공통 색상. 여기서 바꾸면 버튼과 화면에 함께 반영됩니다. */
 :root {
-  --background: #f7f7f0;
+  --background: #f6f3eb;
   --foreground: #303c33;
-  --card: #fffdf7;
+  --card: #fffefa;
   --card-foreground: #303c33;
   --primary: #296b53;
   --primary-foreground: #ffffff;
-  --secondary: #eaf0e5;
+  --secondary: #e2eee3;
   --secondary-foreground: #345b48;
   --muted: #eeefe7;
   --muted-foreground: #647060;
-  --accent: #eaf0e5;
+  --accent: #f0f7ec;
   --accent-foreground: #296b53;
   --destructive: #b33838;
   --border: #e2e6d9;
   --input: #cdd5c7;
   --ring: #296b53;
   --radius: 0.75rem;
+}
+
+/* 선 대신 종이의 밝기와 부드러운 음영으로 영역을 구분합니다. */
+.book-sidebar {
+  background: linear-gradient(165deg, #e8efe2 0%, #f4f2e7 58%, #f6ead9 100%);
+}
+.book-sheet {
+  box-shadow: 0 12px 45px -24px #6b654533, 0 2px 8px -5px #6b65451a;
+}
+.daily-summary {
+  background: radial-gradient(ellipse at 100% 0%, #f7e8ca80, transparent 65%),
+    linear-gradient(105deg, #edf3e9, #f5f5e9);
+}
+.date-field {
+  background: #fffdf8b3;
+  box-shadow: 0 2px 5px #675c3910;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+.date-field:hover, .date-field:focus {
+  background: #fff;
+  box-shadow: 0 2px 10px #675c391a;
+}
+[data-slot="button"] {
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+[data-slot="button"]:active:not(:disabled) { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; }
+  [data-slot="button"]:active:not(:disabled) { transform: none; }
 }
 
 @theme inline {
