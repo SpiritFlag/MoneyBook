@@ -37,7 +37,7 @@ export function fromMinor(value: number, currency: Currency): string {
   return (value / 10 ** currencies[currency].digits).toFixed(currencies[currency].digits);
 }
 export function formatMinor(value: number, currency: Currency): string {
-  return `${(value / 10 ** currencies[currency].digits).toLocaleString("ko-KR", { maximumFractionDigits: currencies[currency].digits })}${currency === "KRW" ? "원" : ` ${currencies[currency].unit}`}`;
+  return `${((value === 0 ? 0 : value) / 10 ** currencies[currency].digits).toLocaleString("ko-KR", { maximumFractionDigits: currencies[currency].digits })}${currency === "KRW" ? "원" : ` ${currencies[currency].unit}`}`;
 }
 export function formatMoney(value: string, currency: Currency): string {
   const amount = toMinor(value, currency);
@@ -54,11 +54,17 @@ const baseExpenseSchema = z.object({
   paidAmount: moneySchema,
   paymentMethod: z.string().trim().min(1, "결제수단을 입력해 주세요.").max(80),
   assetId: z.string().min(1).max(80).nullable().default(null),
+  topup: z.object({ fromId: z.string().max(80), amount: moneySchema, received: moneySchema, sameTime: z.boolean(), date: dateSchema, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), rate: z.string().max(20) }).nullable().default(null),
   paymentKind: z.enum(["card", "account", "cash", "stored"]),
   paymentDate: dateSchema,
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시각을 확인해 주세요.").nullable(),
   useKind: z.enum(["once", "period"]),
   useDate: dateSchema,
+  sortOrder: z.number().finite().default(0),
+  orderReference: z.string().max(80).nullable().default(null),
+  orderSide: z.enum(["before", "after"]).default("after"),
+  valuationRate: z.string().max(20).nullable().default(null),
+  valuationSource: z.string().max(160).nullable().default(null),
   useTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "이용 시각을 확인해 주세요.").nullable().default(null),
   useEnd: dateSchema.nullable(),
   allocation: z.enum(["start", "annual"]),
@@ -105,7 +111,7 @@ export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => 
 export type Expense = ExpenseInput & { id: string; revision: number; createdAt: string; updatedAt: string };
 export const expenseSchema = expenseInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
 export function newExpense(date: string): ExpenseInput {
-  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", assetId: null, paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useTime: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
+  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", assetId: null, topup: null, paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useTime: null, sortOrder: 0, orderReference: null, orderSide: "after", valuationRate: null, valuationSource: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
 }
 export function receiptSummary(value: ExpenseInput) {
   const currency = value.receiptCurrency;
@@ -141,11 +147,22 @@ export function dayTime(value: ExpenseInput, date: string): string | null {
   return value.useKind === "once" && value.useDate === date ? value.useTime ?? null : value.time;
 }
 export function dailyExpenses(values: readonly Expense[], date: string): Expense[] {
-  return values.filter((value) => appearsOnDay(value, date)).sort((a, b) => {
+  const sorted = values.filter((value) => appearsOnDay(value, date)).sort((a, b) => {
     const left = dayTime(a, date), right = dayTime(b, date);
     if (left !== right) return left === null ? 1 : right === null ? -1 : left.localeCompare(right);
-    return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+    return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
   });
+  return orderAroundReferences(sorted, (e) => dayTime(e, date) === null ? e.orderReference : null, (e) => e.orderSide);
+}
+// 시각을 만들어 채우지 않고, 알려진 기준 거래 주변에 표시 순서만 배치합니다.
+export function orderAroundReferences<T extends { id: string }>(rows: T[], reference: (row: T) => string | null, side: (row: T) => "before" | "after"): T[] {
+  const ids = new Set(rows.map((r) => r.id)), visited = new Set<string>(), result: T[] = [];
+  const children = new Map<string, T[]>();
+  for (const row of rows) { const parent = reference(row); if (parent && parent !== row.id && ids.has(parent)) children.set(parent, [...children.get(parent) ?? [], row]); }
+  function visit(row: T) { if (visited.has(row.id)) return; visited.add(row.id); const nested = children.get(row.id) ?? []; nested.filter((r) => side(r) === "before").forEach(visit); result.push(row); nested.filter((r) => side(r) === "after").forEach(visit); }
+  rows.filter((r) => !reference(r) || !ids.has(reference(r)!) || reference(r) === r.id).forEach(visit);
+  rows.forEach(visit);
+  return result;
 }
 export function daySummary(values: Expense[], date: string) {
   const consumption = values.filter((value) => value.useKind === "once" && value.useDate === date);

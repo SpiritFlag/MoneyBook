@@ -10,13 +10,16 @@ import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
 import { categories, currencies, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
 import { useAssets } from "@/lib/use-assets";
-import type { Asset } from "@/lib/asset";
+import { type Asset } from "@/lib/asset";
+import { ExpenseConnections } from "./expense-connections";
+import { TopupEditor } from "./topup-editor";
+import { operationsKey } from "@/lib/use-operations";
 import { ledgerKey, saveExpense } from "@/lib/use-expenses";
 
-export function ExpenseForm({ date, existing, initialAsset }: { date: string; existing?: Expense; initialAsset?: Asset }) {
+export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { date: string; existing?: Expense; initialAsset?: Asset; initialDraft?: ExpenseInput }) {
   const router = useRouter();
   const assets = useAssets();
-  const [value, setValue] = useState<ExpenseInput>(() => existing ? structuredClone(existing) : initialAsset ? { ...newExpense(date), assetId: initialAsset.id, paymentKind: initialAsset.kind, paymentMethod: initialAsset.name, currency: initialAsset.currency, receiptCurrency: initialAsset.currency } : newExpense(date));
+  const [value, setValue] = useState<ExpenseInput>(() => existing ? structuredClone(existing) : initialDraft ? structuredClone(initialDraft) : initialAsset ? { ...newExpense(date), assetId: initialAsset.id, paymentKind: initialAsset.kind, paymentMethod: initialAsset.name, currency: initialAsset.currency, receiptCurrency: initialAsset.currency } : newExpense(date));
   const [revision] = useState(existing?.revision);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,6 +59,7 @@ export function ExpenseForm({ date, existing, initialAsset }: { date: string; ex
       if (!requestId.current) requestId.current = crypto.randomUUID();
       try {
         await mutate(ledgerKey, saveExpense(requestId.current, parsed.data, revision), { revalidate: false, populateCache: true });
+        await mutate(operationsKey);
         setDirty(false);
         router.push(`/transactions/${requestId.current}?saved=1`);
       } catch (cause) { setError(cause instanceof Error ? cause.message : "저장하지 못했어요."); }
@@ -67,16 +71,16 @@ export function ExpenseForm({ date, existing, initialAsset }: { date: string; ex
             <div className="mb-6 flex flex-wrap gap-2">{(["once", "period"] as const).map((kind) => <Button type="button" key={kind} variant={value.useKind === kind ? "secondary" : "ghost"} aria-pressed={value.useKind === kind} onClick={() => field("useKind", kind)}>{value.useKind === kind ? <Check size={14} /> : null}{kind === "once" ? "일회성 이용" : "기간형 이용"}</Button>)}</div>
             <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
               <Field label={card ? "카드 승인금액" : "실제 결제 총액"} hint="명세를 바꿔도 이 금액은 자동으로 바뀌지 않아요."><input autoFocus className="form-control amount-input" inputMode="decimal" value={value.paidAmount} placeholder="0" onChange={(e) => field("paidAmount", e.target.value)} /></Field>
-              <Field label="결제 통화·재화"><select className="form-control" value={value.currency} onChange={(e) => { const currency = e.target.value as Currency; change({ ...value, currency, assetId: null, paymentMethod: value.assetId ? "" : value.paymentMethod, receiptCurrency: value.receiptCurrency === value.currency ? currency : value.receiptCurrency }); }}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
+              <Field label="결제 통화·재화"><select className="form-control" value={value.currency} onChange={(e) => { const currency = e.target.value as Currency; change({ ...value, currency, assetId: null, topup: null, krwAmount: null, valuationRate: null, valuationSource: null, paymentMethod: value.assetId ? "" : value.paymentMethod, receiptCurrency: value.receiptCurrency === value.currency ? currency : value.receiptCurrency }); }}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_10rem]"><Field label="거래명"><input className="form-control" maxLength={120} placeholder="어디에 쓴 돈인가요?" value={value.title} onChange={(e) => field("title", e.target.value)} /></Field><Field label="카테고리"><select className="form-control" value={value.category} onChange={(e) => field("category", e.target.value as ExpenseInput["category"])}>{Object.entries(categories).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field></div>
           </FormSection>
           <FormSection number="02" title="상품과 명세" description="확인한 내용만 채워도 괜찮아요. 할인은 해당 상품 아래에, 전체 할인·가산은 따로 기록해요."><ReceiptEditor value={value} onChange={change} /></FormSection>
           <FormSection number="03" title="결제수단과 날짜">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="결제 방식"><select className="form-control" value={value.paymentKind} onChange={(e) => change({ ...value, paymentKind: e.target.value as ExpenseInput["paymentKind"], assetId: null, paymentMethod: value.assetId ? "" : value.paymentMethod })}><option value="card">신용카드 승인</option><option value="account">계좌·체크카드</option><option value="cash">현금</option><option value="stored">충전 잔액·재화</option></select></Field>
+              <Field label="결제 방식"><select className="form-control" value={value.paymentKind} onChange={(e) => change({ ...value, paymentKind: e.target.value as ExpenseInput["paymentKind"], assetId: null, topup: null, paymentMethod: value.assetId ? "" : value.paymentMethod })}><option value="card">신용카드 승인</option><option value="account">계좌·체크카드</option><option value="cash">현금</option><option value="stored">충전 잔액·재화</option></select></Field>
               <Field label={card ? "카드 이름" : "사용 자산"} hint={card ? "신용카드 승인은 자산에서 즉시 출금하지 않아요." : "같은 종류·통화의 자산을 선택하면 원장에 전체 결제액을 반영해요."}>
-                {card ? <input className="form-control" placeholder="예: 생활 카드" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /> : <select className="form-control" disabled={!assets.data || !!assets.error} value={value.assetId ?? ""} onChange={(e) => { const asset = assets.data?.find((a) => a.id === e.target.value); change({ ...value, assetId: asset?.id ?? null, paymentMethod: asset?.name ?? "" }); }}><option value="">자산 연결 없이 기록</option>{(assets.data ?? []).filter((asset) => asset.kind === value.paymentKind && asset.currency === value.currency).map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>}
+                {card ? <input className="form-control" placeholder="예: 생활 카드" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /> : <select className="form-control" disabled={!assets.data || !!assets.error} value={value.assetId ?? ""} onChange={(e) => { const asset = assets.data?.find((a) => a.id === e.target.value); change({ ...value, assetId: asset?.id ?? null, topup: null, paymentMethod: asset?.name ?? "" }); }}><option value="">자산 연결 없이 기록</option>{(assets.data ?? []).filter((asset) => asset.kind === value.paymentKind && asset.currency === value.currency).map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>}
               </Field>
               {!card && !value.assetId ? <Field label="결제수단 이름" hint="자산을 연결하지 않으면 잔액과 원장에는 반영되지 않아요."><input className="form-control" placeholder="예: 예시 계좌" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /></Field> : null}
               {!card && assets.error ? <p role="alert" className="text-sm text-destructive">자산을 불러오지 못했어요. <button type="button" className="underline" onClick={() => { void assets.mutate(); }}>다시 불러오기</button></p> : null}
@@ -88,11 +92,13 @@ export function ExpenseForm({ date, existing, initialAsset }: { date: string; ex
             </div>
             {value.useKind === "period" ? <div className="mt-5"><Field label="월간 소비 반영"><select className="form-control" value={value.allocation} onChange={(e) => field("allocation", e.target.value as ExpenseInput["allocation"])}><option value="start">시작월에 전액</option><option value="annual">연간 결제 · 12개월 배분</option></select></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">기간형은 일일 소비에 더하지 않고 월간 정기지출에 반영해요. 연간 배분의 원 단위 나머지는 첫 달에 더해요.</p></div> : null}
           </FormSection>
+          {!card && assets.data ? <TopupEditor value={value} change={change} assets={assets.data} /> : null}
           <FormSection number="04" title="내가 부담한 금액">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.shared} onChange={(e) => change({ ...value, shared: e.target.checked, ownAmount: e.target.checked ? value.ownAmount ?? (value.paidAmount || "0") : null })} />다른 사람과 비용을 나눴어요</label>
             {value.shared ? <div className="mt-4"><Field label="본인 부담액" hint="결제 전체액은 유지하고 내 몫만 소비로 반영해요."><input className="form-control" inputMode="decimal" value={value.ownAmount ?? ""} onChange={(e) => field("ownAmount", e.target.value)} /></Field></div> : null}
             {value.currency !== "KRW" ? <div className="mt-5"><Field label={card ? "확정 원화 청구액 (선택)" : "확정 원화 평가액 (선택)"} hint="실제 결제 전체액의 원화 금액이에요. 모르면 비워 두고 나중에 수정하세요. 임의 환율로 합산하지 않아요."><input className="form-control" inputMode="numeric" value={value.krwAmount ?? ""} placeholder="원화 미확정" onChange={(e) => field("krwAmount", e.target.value || null)} /></Field></div> : null}
           </FormSection>
+          <ExpenseConnections value={value} change={change} id={existing?.id} />
           <FormSection number="05" title="메모"><Field label="기억해 둘 내용 (선택)"><textarea className="form-control min-h-24 resize-y" maxLength={2000} placeholder="영수증에서 확인할 내용이나 거래의 맥락을 남겨보세요." value={value.memo} onChange={(e) => field("memo", e.target.value)} /></Field></FormSection>
         </div>
         <aside className="min-w-0 xl:sticky xl:top-7 xl:self-start">
