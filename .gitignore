@@ -1,0 +1,25 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.vercel/
+.local/
+
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.log
+
+# Local databases and backups; SQL migrations remain versioned
+data/
+backups/
+moneybook-backups/
+*.dump
+*.backup
+
+# OS metadata
+.DS_Store
+Thumbs.db
