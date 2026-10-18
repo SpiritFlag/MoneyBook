@@ -78,3 +78,10 @@
   button:not(:disabled), summary { cursor: pointer; }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 }
+
+.form-control { display: block; width: 100%; min-width: 0; border: 1px solid transparent; border-radius: 0.8rem; background: #f5f4ed; padding: 0.75rem 0.85rem; font-size: 0.875rem; color: var(--foreground); transition: background-color 160ms ease, border-color 160ms ease; }
+.form-control:hover { background: #efefe5; }
+.form-control:focus { background: white; border-color: #9abd9f; outline-offset: 2px; }
+.form-control::placeholder { color: #929789; }
+.amount-input { font-size: 1.6rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.demo-badge { border-radius: 999px; background: #eee6d5; padding: 0.4rem 0.75rem; font-size: 0.75rem; color: #776442; }

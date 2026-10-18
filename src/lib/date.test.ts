@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseDateParts, parseDateQuery, shiftDate } from "./date";
-import { getDailyTransactions, sumPersonalSpending } from "./demo-transactions";
+import { daySummary } from "./expense";
+import { seedExpenses } from "./seed-expenses";
 
 test("존재하는 날짜만 확정하고 입력 도중 값은 거절한다", () => {
   assert.equal(parseDateParts("2026", "2", "31"), null);
@@ -30,7 +31,7 @@ test("주소의 날짜는 실제 존재하는 ISO 날짜만 받아들인다", ()
 });
 
 test("결제 전체액 대신 본인 부담액을 합산하고 빈 날짜는 0이다", () => {
-  assert.equal(sumPersonalSpending(getDailyTransactions("2026-10-18")), 19500);
-  assert.equal(sumPersonalSpending(getDailyTransactions("2026-10-17")), 1500);
-  assert.equal(sumPersonalSpending(getDailyTransactions("2026-10-16")), 0);
+  assert.equal(daySummary(seedExpenses, "2026-10-18").total, 19500);
+  assert.equal(daySummary(seedExpenses, "2026-10-17").total, 1500);
+  assert.equal(daySummary(seedExpenses, "2026-10-16").total, 0);
 });
