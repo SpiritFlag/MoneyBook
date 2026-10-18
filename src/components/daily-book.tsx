@@ -17,12 +17,14 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
       <div><p className="mb-2 text-xs font-semibold tracking-widest text-primary">하루하루, 차곡차곡</p><h1 className="text-3xl font-bold tracking-tight">일일 내역</h1><p className="mt-3 text-sm text-muted-foreground">오늘 쓴 돈과 그 이야기를 살펴보세요.</p></div>
       <span className="shrink-0 rounded-full bg-[#eee6d5] px-3 py-1.5 text-xs text-[#776442]">가상 데이터</span>
     </header>
-    <DateNavigator date={date} onDateChange={setDate} />
-    <section aria-label="선택한 날짜의 내역" className="book-sheet mt-6 overflow-hidden rounded-3xl bg-card">
-      <div className="daily-summary relative flex flex-wrap items-end justify-between gap-5 px-5 py-7 sm:px-8 sm:py-8">
+    <section aria-label="선택한 날짜의 내역" className="book-sheet rounded-3xl bg-card pb-0.5">
+      <div className="daily-summary relative flex flex-wrap items-end justify-between gap-5 rounded-t-3xl px-5 py-7 sm:px-8 sm:py-8">
         <span aria-hidden="true" className="absolute top-0 left-8 h-1 w-10 rounded-b-full bg-primary/45" />
         <div><p className="mb-3 text-[11px] font-medium tracking-[0.16em] text-primary/80">나의 하루</p><h2 className="text-lg font-semibold sm:text-xl">{displayDate(date)}</h2><p className="mt-2 text-sm text-muted-foreground">소비 내역 {transactions.length}건</p></div>
         <div className="text-right" aria-live="polite" aria-atomic="true"><p className="mb-2 text-xs text-muted-foreground">하루 소비</p><p className="text-3xl font-bold tracking-tight text-primary tabular-nums sm:text-4xl">{formatWon(total)}</p></div>
+      </div>
+      <div className="px-5 pt-4 sm:px-7">
+        <DateNavigator date={date} onDateChange={setDate} />
       </div>
       <TransactionList transactions={transactions} />
       <p className="mx-5 mb-5 rounded-xl bg-[#f7f5ed] px-4 py-3 text-xs leading-relaxed text-muted-foreground sm:mx-7">하루 소비는 본인 부담액 기준이에요. 함께 낸 거래는 전체 결제액을 따로 표시해요.</p>

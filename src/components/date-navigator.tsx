@@ -33,9 +33,9 @@ export function DateNavigator({ date, onDateChange }: Props) {
   }
 
   return (
-    <div className="pt-2 pb-1">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <form aria-label="날짜 직접 입력" className="date-entry flex items-center rounded-2xl px-2 py-1.5 sm:px-3" noValidate onSubmit={(event) => {
+    <div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <form aria-label="날짜 직접 입력" className="date-entry flex items-center rounded-xl px-1 py-0.5" noValidate onSubmit={(event) => {
           event.preventDefault();
           const value = parseDateParts(year, month, day);
           if (!value) { setError("날짜를 확인해 주세요. 연도는 1900~9999년이며, 실제 있는 월·일을 입력해 주세요."); return; }
@@ -53,14 +53,14 @@ export function DateNavigator({ date, onDateChange }: Props) {
                 inputMode="numeric" maxLength={field.length} value={field.value}
                 onChange={(event) => { field.set(event.target.value); setError(""); }}
                 onFocus={(event) => event.target.select()}
-                className={`date-field h-10 rounded-lg border-0 text-center text-lg font-medium tabular-nums ${field.length === 4 ? "w-[4.5rem] text-muted-foreground" : "w-12 text-foreground"}`}
+                className={`date-field h-9 rounded-lg border-0 text-center text-sm font-medium tabular-nums ${field.length === 4 ? "w-14 text-muted-foreground" : "w-9 text-foreground"}`}
               />
               {field.separator ? <span aria-hidden="true" className="px-0.5 text-sm text-[#a2aa9b]">/</span> : null}
             </label>
           ))}
-          <Button type="submit" variant="ghost" size="icon" aria-label="입력한 날짜로 이동" title="입력한 날짜로 이동 (Enter)" className="ml-2 rounded-xl bg-secondary/70 text-primary hover:bg-white"><ArrowRight size={18} /></Button>
+          <Button type="submit" variant="ghost" size="icon" aria-label="입력한 날짜로 이동" title="입력한 날짜로 이동 (Enter)" className="ml-1 rounded-lg text-primary hover:bg-secondary/50"><ArrowRight size={16} /></Button>
         </form>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon" aria-label="전날" disabled={date === "1900-01-01"} onClick={() => navigate(shiftDate(date, -1))}><ChevronLeft /></Button>
           <Button variant="secondary" onClick={() => navigate(todayInSeoul())}>오늘</Button>
           <Button variant="ghost" size="icon" aria-label="다음 날" disabled={date === "9999-12-31"} onClick={() => navigate(shiftDate(date, 1))}><ChevronRight /></Button>
@@ -81,9 +81,13 @@ export function DateNavigator({ date, onDateChange }: Props) {
               <Button type="submit" className="mt-3 w-full">선택한 날짜로 이동</Button>
             </form>
           </details>
+          <details className="relative">
+            <summary aria-label="날짜 입력 도움말" title="날짜 입력 도움말" className="flex h-9 w-9 list-none items-center justify-center rounded-lg text-xs text-muted-foreground transition-colors hover:bg-secondary/50 [&::-webkit-details-marker]:hidden">?</summary>
+            <p className="absolute right-0 z-10 mt-2 w-56 rounded-xl bg-card p-4 text-xs leading-6 shadow-lg">월·일을 직접 수정할 수 있어요. Tab으로 다음 칸, Enter 또는 화살표로 이동하세요.</p>
+          </details>
         </div>
       </div>
-      <p id="date-help" className="mt-3 pl-1 text-xs text-muted-foreground">날짜를 직접 고쳐보세요<span aria-hidden="true" className="mx-2 text-muted-foreground/40">·</span><span className="whitespace-nowrap">Tab으로 다음 칸, Enter로 이동</span></p>
+      <p id="date-help" className="sr-only">연·월·일을 직접 수정하고 Tab으로 다음 칸, Enter 또는 화살표로 이동하세요.</p>
       {error ? <p id="date-error" role="alert" className="mt-2 text-sm text-destructive">{error}</p> : null}
     </div>
   );
