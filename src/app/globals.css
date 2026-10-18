@@ -32,22 +32,6 @@
   background: radial-gradient(ellipse at 100% 0%, #f7e8ca80, transparent 65%),
     linear-gradient(105deg, #edf3e9, #f5f5e9);
 }
-.date-entry {
-  background: #fffdf9b3;
-  box-shadow: 0 3px 16px -8px #675c3924;
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-.date-entry:focus-within {
-  background: #fffefa;
-  box-shadow: 0 3px 16px -8px #675c3924, 0 0 0 2px #296b531a;
-}
-.date-field {
-  background: transparent;
-  transition: background-color 160ms ease;
-}
-.date-field:hover, .date-field:focus {
-  background: #e9f0e680;
-}
 [data-slot="button"] {
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
