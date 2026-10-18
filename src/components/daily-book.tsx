@@ -1,13 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DateNavigator } from "@/components/date-navigator";
 import { TransactionList } from "@/components/transaction-list";
 import { Button } from "@/components/ui/button";
+import { parseDateQuery } from "@/lib/date";
 import { formatWon, getDailyTransactions, sumPersonalSpending } from "@/lib/demo-transactions";
 
 export function DailyBook({ initialDate }: { initialDate: string }) {
-  const [date, setDate] = useState(initialDate);
+  const searchParams = useSearchParams();
+  const date = parseDateQuery(searchParams.get("date")) ?? initialDate;
+  // 선택한 날짜가 주소에 남으므로 상세에서 돌아오거나 새로고침해도 유지됩니다.
+  function setDate(value: string) {
+    const query = new URLSearchParams(searchParams.toString());
+    query.set("date", value);
+    window.history.replaceState(null, "", `/?${query.toString()}`);
+  }
   const transactions = getDailyTransactions(date);
   const total = sumPersonalSpending(transactions);
 

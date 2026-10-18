@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { BookOpen } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, ChevronRight } from "lucide-react";
 import { categories, formatWon, type Transaction } from "@/lib/demo-transactions";
 
 export function TransactionList({ transactions }: { transactions: readonly Transaction[] }) {
@@ -14,7 +15,8 @@ export function TransactionList({ transactions }: { transactions: readonly Trans
     {transactions.map((transaction) => {
       const category = categories[transaction.category];
       const shared = transaction.personalAmount !== transaction.paidAmount;
-      return <li key={transaction.id} className="flex items-center gap-3 px-4 py-5 sm:gap-5 sm:px-7">
+      return <li key={transaction.id} className="px-2 sm:px-3">
+        <Link href={`/transactions/${transaction.id}`} aria-label={`${transaction.title} 상세 보기`} className="transaction-link group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20">
           <Image src={category.image} alt="" width={80} height={80} className="h-16 w-16 object-contain sm:h-20 sm:w-20" />
         </div>
@@ -27,6 +29,8 @@ export function TransactionList({ transactions }: { transactions: readonly Trans
           <p className="text-base font-semibold sm:text-lg">{formatWon(transaction.personalAmount)}</p>
           {shared ? <><p className="mt-1 text-xs font-medium text-primary">본인 소비</p><p className="mt-1 text-xs text-muted-foreground">결제 {formatWon(transaction.paidAmount)}</p></> : null}
         </div>
+        <ChevronRight aria-hidden="true" size={16} className="hidden shrink-0 text-primary/35 transition-colors group-hover:text-primary sm:block" />
+        </Link>
       </li>;
     })}
   </ul>;

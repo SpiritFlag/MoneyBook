@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseDateParts, shiftDate } from "./date";
+import { parseDateParts, parseDateQuery, shiftDate } from "./date";
 import { getDailyTransactions, sumPersonalSpending } from "./demo-transactions";
 
 test("존재하는 날짜만 확정하고 입력 도중 값은 거절한다", () => {
@@ -19,6 +19,14 @@ test("월말·연말 이동과 날짜 범위 경계를 지킨다", () => {
   assert.equal(shiftDate("2026-12-31", 1), "2027-01-01");
   assert.equal(shiftDate("1900-01-01", -1), "1900-01-01");
   assert.equal(shiftDate("9999-12-31", 1), "9999-12-31");
+});
+
+test("주소의 날짜는 실제 존재하는 ISO 날짜만 받아들인다", () => {
+  assert.equal(parseDateQuery("2026-10-17"), "2026-10-17");
+  assert.equal(parseDateQuery("2026-02-31"), null);
+  assert.equal(parseDateQuery("2026-1-7"), null);
+  assert.equal(parseDateQuery("2026-10-17T00:00:00Z"), null);
+  assert.equal(parseDateQuery(null), null);
 });
 
 test("결제 전체액 대신 본인 부담액을 합산하고 빈 날짜는 0이다", () => {

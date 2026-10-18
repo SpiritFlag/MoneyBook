@@ -28,6 +28,10 @@ export function getDailyTransactions(date: string): readonly Transaction[] {
   return demoTransactions.filter((transaction) => transaction.date === date);
 }
 
+export function getTransaction(id: string): Transaction | undefined {
+  return demoTransactions.find((transaction) => transaction.id === id);
+}
+
 export function sumPersonalSpending(transactions: readonly Transaction[]): number {
   return transactions.reduce((total, transaction) => total + transaction.personalAmount, 0);
 }

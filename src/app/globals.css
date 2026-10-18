@@ -32,6 +32,13 @@
   background: radial-gradient(ellipse at 100% 0%, #f7e8ca80, transparent 65%),
     linear-gradient(105deg, #edf3e9, #f5f5e9);
 }
+.transaction-link {
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+.transaction-link:hover, .transaction-link:focus-visible {
+  background: #ffffff;
+  box-shadow: 0 4px 18px -12px #63755255;
+}
 [data-slot="button"] {
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }

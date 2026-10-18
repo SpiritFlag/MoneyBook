@@ -1,6 +1,12 @@
 export const MIN_YEAR = 1900;
 export const MAX_YEAR = 9999;
 
+export function parseDateQuery(value: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-");
+  return parseDateParts(year, month, day);
+}
+
 // 날짜만 다룹니다. UTC로 계산해 시간대·서머타임 때문에 하루가 밀리지 않게 합니다.
 export function parseDateParts(year: string, month: string, day: string): string | null {
   if (![year, month, day].every((part) => /^\d+$/.test(part))) return null;

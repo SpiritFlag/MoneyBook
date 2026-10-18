@@ -20,7 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </div>
         <nav aria-label="주 메뉴" className="px-4 pb-4 md:mt-10 md:px-5">
           <p className="mb-3 hidden px-3 text-xs text-muted-foreground md:block">나의 기록</p>
-          <Link href="/" aria-current="page" className="flex items-center gap-3 rounded-xl bg-white/55 px-4 py-3 text-sm font-semibold text-primary shadow-[0_3px_12px_-8px_#296b5350] transition-colors duration-150 hover:bg-white/90"><BookOpen size={19} />일일 내역<span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/60" /></Link>
+          <Link href="/" className="flex items-center gap-3 rounded-xl bg-white/55 px-4 py-3 text-sm font-semibold text-primary shadow-[0_3px_12px_-8px_#296b5350] transition-colors duration-150 hover:bg-white/90"><BookOpen size={19} />일일 내역<span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-primary/60" /></Link>
         </nav>
         <div className="absolute bottom-8 hidden px-8 text-xs leading-6 text-muted-foreground md:block"><Leaf className="mb-3 text-primary" size={20} /><p>작은 기록이 모여<br />나의 생활이 보이도록.</p></div>
       </aside>
