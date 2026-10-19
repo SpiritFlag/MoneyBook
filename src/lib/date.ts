@@ -18,9 +18,12 @@ export function parseDateParts(year: string, month: string, day: string): string
 }
 
 export function shiftDate(value: string, days: number): string {
+  // Native date fields emit an empty value while a date segment is being edited.
+  // Keep that draft intact; validation belongs to save, not render-time arithmetic.
+  if (parseDateQuery(value) === null || !Number.isSafeInteger(days)) return value;
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
-  if (date.getUTCFullYear() < MIN_YEAR || date.getUTCFullYear() > MAX_YEAR) return value;
+  if (!Number.isFinite(date.getTime()) || date.getUTCFullYear() < MIN_YEAR || date.getUTCFullYear() > MAX_YEAR) return value;
   return date.toISOString().slice(0, 10);
 }
 

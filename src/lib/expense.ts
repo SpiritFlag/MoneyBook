@@ -156,6 +156,7 @@ export function dayTime(value: ExpenseInput, date: string): string | null {
   return value.useKind === "once" && bookDate(value.useDate, value.useTime) === date ? value.useTime ?? null : value.time;
 }
 export function expenseOrderReferences(values: readonly Expense[], value: ExpenseInput, id?: string) {
+  if (value.useKind !== "once" || value.useTime !== null || parseDateQuery(value.useDate) === null) return [];
   const date = bookDate(value.useDate, value.useTime);
   return dailyExpenses(values, date).filter(e => e.id !== id);
 }

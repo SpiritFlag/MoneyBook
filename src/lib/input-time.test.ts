@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeTime } from "./input-time";
-import { changeExpenseDate, changeExpenseTime, followsPaymentTime, followsPaymentDate, newExpense, expenseInputSchema } from "./expense";
+import { changeExpenseDate, changeExpenseTime, expenseOrderReferences, followsPaymentTime, followsPaymentDate, newExpense, expenseInputSchema } from "./expense";
 import { createBookRepository, storedSchema, type Book } from "./expense-repository";
 
 test("24시간 입력은 0시·오후·마지막 분과 빈 값, 잘못된 시각을 구분한다", () => {
@@ -23,6 +23,20 @@ test("이용일은 결제일을 따르다가 명시적 수정 후 저장·재조
   assert.equal(changeExpenseDate(reconnected, "paymentDate", "2026-10-04").useDate, "2026-10-04");
   assert.equal(followsPaymentDate({ ...base, useDateFollowsPayment: undefined }), true);
   assert.equal(followsPaymentDate({ ...base, useDateFollowsPayment: undefined, useDate: "2026-10-03" }), false);
+});
+
+test("기간형 시작일을 지웠다가 과거 날짜로 입력해도 새벽 시각과 초안을 유지한다", () => {
+  const base = changeExpenseTime({ ...newExpense("2026-10-19"), title: "구독", paymentMethod: "카드", paidAmount: "5900", useKind: "period" as const, useEnd: "2026-11-02" }, "time", "03:30");
+  const empty = changeExpenseDate(base, "useDate", "");
+  assert.deepEqual(expenseOrderReferences([], empty), []);
+  assert.equal(empty.useTime, "03:30");
+  assert.equal(expenseInputSchema.safeParse(empty).success, false);
+  const past = changeExpenseDate(empty, "useDate", "2026-10-03");
+  assert.equal(expenseInputSchema.safeParse(past).success, true);
+  assert.equal(past.paymentDate, "2026-10-19");
+  assert.equal(past.useDate, "2026-10-03");
+  assert.equal(past.useEnd, "2026-11-02");
+  assert.deepEqual(expenseOrderReferences([], past), []);
 });
 
 test("이용 시각은 결제 시각을 따르고 별도 입력을 선택하면 독립적으로 유지한다", () => {

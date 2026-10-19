@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseDateParts, parseDateQuery, shiftDate } from "./date";
+import { bookDate, parseDateParts, parseDateQuery, shiftDate } from "./date";
 import { daySummary } from "./expense";
 import { seedExpenses } from "./seed-expenses";
 
@@ -20,6 +20,15 @@ test("월말·연말 이동과 날짜 범위 경계를 지킨다", () => {
   assert.equal(shiftDate("2026-12-31", 1), "2027-01-01");
   assert.equal(shiftDate("1900-01-01", -1), "1900-01-01");
   assert.equal(shiftDate("9999-12-31", 1), "9999-12-31");
+});
+
+test("날짜를 고치는 중의 빈 값·불완전한 값은 새벽 계산에서도 예외 없이 보존한다", () => {
+  for (const draft of ["", "2026-", "2026-10-", "2026-02-30", "0002-10-01"]) {
+    assert.equal(shiftDate(draft, -1), draft);
+    assert.equal(bookDate(draft, "03:30"), draft);
+  }
+  for (const days of [NaN, Infinity, Number.MAX_SAFE_INTEGER]) assert.equal(shiftDate("2026-10-01", days), "2026-10-01");
+  assert.equal(bookDate("2026-10-01", "03:30"), "2026-09-30");
 });
 
 test("주소의 날짜는 실제 존재하는 ISO 날짜만 받아들인다", () => {
