@@ -35,7 +35,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3"><span className="expense-category">{category.label}</span>{item.useKind === "period" ? <span className="text-xs text-muted-foreground">기간형 이용</span> : null}</div>
           <h1 className="expense-title">{item.title}</h1>
-          <p className="mt-4 text-sm text-muted-foreground">{item.paymentDate} · {item.time ?? "시각 미확인"}</p>
+          <p className="mt-4 text-sm text-muted-foreground">{item.paymentDate}{item.time ? ` · ${item.time}` : item.useKind === "period" ? "" : " · 시각 미확인"}</p>
           <p aria-label="전체 결제 금액" className={`expense-total ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>{formatMoney(item.paidAmount, item.currency)}</p>
           {personal ? <div className="mt-4 space-y-1 text-sm"><p className="font-medium text-primary">{isCancelled ? "전액 취소 · 내 소비 0원" : `${recovered ? "보험금 반영 후 " : ""}내 소비 ${krw !== null ? formatMinor(krw, "KRW") : formatMinor(ownMinor(item), item.currency)}`}</p>{item.shared && item.currency !== "KRW" ? <p className="text-xs text-muted-foreground">내 몫 {formatMinor(ownMinor(item), item.currency)}</p> : null}</div> : null}
           {item.currency !== "KRW" ? <p className="mt-3 text-sm text-muted-foreground">{item.krwAmount === null ? "원화 미확정 · 합계에서 분리" : `${personal ? "전체 결제 원화 " : "원화 "}${formatMoney(item.krwAmount, "KRW")}`}</p> : null}
@@ -47,7 +47,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
         <section className="expense-payment" aria-label="결제와 이용 정보">
           <h2 className="text-lg font-medium">{item.assetId ? <Link className="text-primary hover:underline" href={`/assets/${item.assetId}`}>{item.paymentMethod} · 원장 보기 →</Link> : item.paymentMethod}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{item.paymentKind === "card" ? "결제한 신용카드" : "결제한 자산"}</p>
-          {differentUse ? <p className="mt-5 text-sm leading-7"><span className="mr-3 text-muted-foreground">{item.useKind === "period" ? "이용기간" : "이용일"}</span>{item.useDate} · {item.useTime ?? "시각 미확인"}{item.useKind === "period" ? ` ~ ${item.useEnd}` : ""}</p> : null}
+          {differentUse ? <p className="mt-5 text-sm leading-7"><span className="mr-3 text-muted-foreground">{item.useKind === "period" ? "이용기간" : "이용일"}</span>{item.useDate}{item.useTime ? ` · ${item.useTime}` : item.useKind === "period" ? "" : " · 시각 미확인"}{item.useKind === "period" ? ` ~ ${item.useEnd}` : ""}</p> : null}
           {item.valuationRate !== null ? <p className="mt-4 text-sm text-muted-foreground">{fixedCurrency ? "재화 고정 환율" : "원화 환산 기준"} · 1 {item.currency} = {item.valuationRate}원{!fixedCurrency && item.valuationSource && !["linked-topup", "manual", "재화 고정 환율"].includes(item.valuationSource) ? <Link className="ml-3 text-primary hover:underline" href={`/records/${item.valuationSource.split("/")[0]}`}>충전 기준 보기 →</Link> : null}</p> : null}
           <details className="mt-5 text-xs text-muted-foreground"><summary className="w-fit">소비 반영 기준</summary><p className="mt-3 leading-6">{item.useKind === "period" ? item.allocation === "annual" ? "시작월부터 12개월 배분" : "시작월 정기지출" : `${bookDate(item.useDate, item.useTime)}의 일일 소비 · 05시 기준`}</p>{item.shared ? <p className="mt-2 leading-6">본인 부담액을 소비에 반영하고 전체 결제액은 원장에 기록해요.</p> : null}</details>
         </section>
