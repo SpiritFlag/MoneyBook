@@ -10,6 +10,8 @@ import { Field, FormSection } from "@/components/form-fields";
 import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
 import { categories, currencies, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
+import { useCards } from "@/lib/use-cards";
+import Link from "next/link";
 import { useAssets } from "@/lib/use-assets";
 import { type Asset } from "@/lib/asset";
 import { ExpenseConnections } from "./expense-connections";
@@ -21,6 +23,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   const { mutate } = useSWRConfig();
   const router = useRouter();
   const assets = useAssets();
+  const cards = useCards();
   const [value, setValue] = useState<ExpenseInput>(() => existing ? structuredClone(existing) : initialDraft ? structuredClone(initialDraft) : initialAsset ? { ...newExpense(date), assetId: initialAsset.id, paymentKind: initialAsset.kind, paymentMethod: initialAsset.name, currency: initialAsset.currency, receiptCurrency: initialAsset.currency } : newExpense(date));
   const [revision] = useState(existing?.revision);
   const [error, setError] = useState("");
@@ -82,7 +85,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="결제 방식"><select className="form-control" value={value.paymentKind} onChange={(e) => change({ ...value, paymentKind: e.target.value as ExpenseInput["paymentKind"], assetId: null, topup: null, paymentMethod: value.assetId ? "" : value.paymentMethod })}><option value="card">신용카드 승인</option><option value="account">계좌·체크카드</option><option value="cash">현금</option><option value="stored">충전 잔액·재화</option></select></Field>
               <Field label={card ? "카드 이름" : "사용 자산"} hint={card ? "신용카드 승인은 자산에서 즉시 출금하지 않아요." : "같은 종류·통화의 자산을 선택하면 원장에 전체 결제액을 반영해요."}>
-                {card ? <input className="form-control" placeholder="예: 생활 카드" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /> : <select className="form-control" disabled={!assets.data || !!assets.error} value={value.assetId ?? ""} onChange={(e) => { const asset = assets.data?.find((a) => a.id === e.target.value); change({ ...value, assetId: asset?.id ?? null, topup: null, paymentMethod: asset?.name ?? "" }); }}><option value="">자산 연결 없이 기록</option>{(assets.data ?? []).filter((asset) => asset.kind === value.paymentKind && asset.currency === value.currency).map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>}
+                {card ? <><select className="form-control" disabled={!cards.data || !!cards.error} value={value.paymentMethod} onChange={e => field("paymentMethod", e.target.value)}><option value="">신용카드 선택</option>{value.paymentMethod && !cards.data?.some(c => c.name === value.paymentMethod) ? <option value={value.paymentMethod}>{value.paymentMethod} · 기존 기록</option> : null}{cards.data?.map(c => <option key={c.id} value={c.name}>{c.name}{c.issuer ? ` · ${c.issuer}` : ""}</option>)}</select>{cards.error ? <button type="button" className="mt-2 text-xs text-red-700" onClick={() => void cards.mutate()}>카드 목록을 불러오지 못했어요 · 다시 시도</button> : null}<Link href="/cards/new" className="mt-2 inline-block text-xs font-medium text-primary">+ 신용카드 추가</Link></> : <select className="form-control" disabled={!assets.data || !!assets.error} value={value.assetId ?? ""} onChange={(e) => { const asset = assets.data?.find((a) => a.id === e.target.value); change({ ...value, assetId: asset?.id ?? null, topup: null, paymentMethod: asset?.name ?? "" }); }}><option value="">자산 연결 없이 기록</option>{(assets.data ?? []).filter((asset) => asset.kind === value.paymentKind && asset.currency === value.currency).map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>}
               </Field>
               {!card && !value.assetId ? <Field label="결제수단 이름" hint="자산을 연결하지 않으면 잔액과 원장에는 반영되지 않아요."><input className="form-control" placeholder="예: 예시 계좌" value={value.paymentMethod} onChange={(e) => field("paymentMethod", e.target.value)} /></Field> : null}
               {!card && assets.error ? <p role="alert" className="text-sm text-destructive">자산을 불러오지 못했어요. <button type="button" className="underline" onClick={() => { void assets.mutate(); }}>다시 불러오기</button></p> : null}

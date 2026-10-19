@@ -1,3 +1,4 @@
+import type { Card } from "./card";
 import { z } from "zod";
 import {
   expenseInputSchema,
@@ -108,6 +109,7 @@ export const operationSchema = operationInputSchema.safeExtend({
 });
 export type Operation = z.infer<typeof operationSchema>;
 export type BookData = {
+  cards?: Card[];
   expenses: Expense[];
   assets: Asset[];
   operations: Operation[];

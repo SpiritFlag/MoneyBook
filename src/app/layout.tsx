@@ -8,6 +8,7 @@ import { AuthenticatedBook } from "@/components/authenticated-book";
 
 export const metadata: Metadata = {
   title: "머니북",
+  icons: { apple: "/moneybook-mascot.png" },
   description: "하루하루 차곡차곡, 내가 쓴 돈과 거래의 맥락을 기록하는 머니북.",
 };
 

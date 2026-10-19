@@ -28,6 +28,10 @@ try {
     b.saveAsset({ ...newAsset(date), name: "Test wallet", kind: "cash", openingBalance: "0" }, walletId, null),
   ]);
   assert.equal((await a.listAssets()).length, 2, "Concurrent first writes must both survive");
+  const cardId = randomUUID();
+  await a.saveCard({ name: "Integration card", issuer: "Test issuer" }, cardId);
+  assert.equal((await b.listCards())[0].id, cardId);
+  assert.deepEqual(await createNeonRepository(other, connection).listCards(), []);
   const id = randomUUID();
   const expense = { ...newExpense(date), title: "Test expense", assetId: walletId, paymentKind: "cash" as const, paymentMethod: "Test wallet", paidAmount: "100", topup: { sameTime: true, date, time: null, fromId: bankId, amount: "1000", received: "1000", rate: "" } };
   await a.save(expense, id, null);
@@ -50,7 +54,8 @@ try {
   const income = { ...newOperation("income", date), title: "Test income", amount: "100", assetId: bankId };
   await a.saveOperation(income, randomUUID(), null);
   assert.equal((await createNeonRepository(owner, connection).listOperations()).length, 2);
-  console.log("PASS: Neon persistence, concurrent first writes, atomic top-up, idempotency, owner isolation, revision conflict, validation rollback, operation persistence.");
+  assert.equal((await createNeonRepository(owner, connection).listCards())[0].id, cardId, "Other saves must preserve registered cards");
+  console.log("PASS: card registration and isolation, Neon persistence, concurrent first writes, atomic top-up, idempotency, owner isolation, revision conflict, validation rollback, operation persistence.");
 } catch (error) {
   console.error("DB integration test failed:", error instanceof Error ? error.message.replace(/postgres(?:ql)?:\/\/\S+/g, "[redacted]") : "unknown");
   process.exitCode = 1;

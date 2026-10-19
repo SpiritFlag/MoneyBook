@@ -617,18 +617,17 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
     .reduce((s, r) => s + (r.amount ?? 0), toMinor(value.fee, "KRW") ?? 0);
   const cards = [
     ...new Set(
-      book.expenses
+      [...(book.cards ?? []).map(c => c.name), ...book.expenses
         .filter((e) => e.paymentKind === "card")
-        .map((e) => e.paymentMethod),
+        .map((e) => e.paymentMethod), ...(value.card ? [value.card] : [])],
     ),
   ];
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="카드 이름">
-          <input
+          <select
             className="form-control"
-            list="card-names"
             value={value.card}
             onChange={(e) =>
               change({
@@ -640,12 +639,12 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
                 payment: null,
               })
             }
-          />
-          <datalist id="card-names">
+          >
+            <option value="">신용카드 선택</option>
             {cards.map((card) => (
-              <option key={card} value={card} />
+              <option key={card} value={card}>{card}</option>
             ))}
-          </datalist>
+          </select>
         </Field>
         <Field label="명세서 월">
           <input

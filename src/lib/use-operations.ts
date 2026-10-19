@@ -1,4 +1,5 @@
 "use client";
+import { useCards } from "./use-cards";
 import useSWR from "swr";
 import { useAssets } from "./use-assets";
 import { useExpenses } from "./use-expenses";
@@ -19,20 +20,23 @@ export function useOperations() {
   });
 }
 export function useBook() {
+  const cards = useCards();
   const assets = useAssets(),
     expenses = useExpenses(),
     operations = useOperations();
   return {
     data:
-      assets.data && expenses.data && operations.data
+      cards.data && assets.data && expenses.data && operations.data
         ? {
+            cards: cards.data,
             assets: assets.data,
             expenses: expenses.data,
             operations: operations.data,
           }
         : undefined,
-    error: assets.error ?? expenses.error ?? operations.error,
+    error: cards.error ?? assets.error ?? expenses.error ?? operations.error,
     retry: () => {
+      void cards.mutate();
       void assets.mutate();
       void expenses.mutate();
       void operations.mutate();
