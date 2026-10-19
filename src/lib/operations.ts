@@ -11,6 +11,12 @@ import {
 import { signedMinor, rateUnits, type Asset } from "./asset";
 import { parseDateQuery } from "./date";
 
+export const incomeCategories = {
+  employment: { label: "근로소득", image: "/characters/income_employment.png" },
+  financial: { label: "금융소득", image: "/characters/income_financial.png" },
+  benefit: { label: "혜택·지원금", image: "/characters/income_benefit.png" },
+  other: { label: "기타 수입", image: "/characters/income_other.png" },
+} as const;
 export const operationLabels = {
   income: "수입·입금",
   transfer: "자산 이동·충전",
@@ -64,6 +70,7 @@ export const operationInputSchema = z.object({
     "statement",
     "template",
   ]),
+  incomeCategory: z.enum(["employment", "financial", "benefit", "other"]).default("other"),
   title: z.string().trim().min(1, "기록 이름을 입력해 주세요.").max(120),
   date,
   time,
@@ -112,6 +119,7 @@ export function newOperation(
   return {
     kind,
     title: operationLabels[kind],
+    incomeCategory: "other",
     date,
     time: null,
     currency: "KRW",
@@ -290,6 +298,7 @@ export function operationPostings(
       time = op.time,
       suffix = "",
       title = op.title,
+      order = op.parentId ? -1 : 0,
     ) => {
       const asset = assets.find((a) => a.id === assetId);
       if (asset)
@@ -301,7 +310,7 @@ export function operationPostings(
           amount: sign * (toMinor(value, asset.currency) ?? 0),
           title,
           href: `/records/${op.id}`,
-          order: op.parentId ? -1 : 0,
+          order,
         });
     };
     if (["income", "recovery", "insurance"].includes(op.kind))
@@ -317,6 +326,7 @@ export function operationPostings(
           r.time,
           `${i}-out`,
           `${op.title} · ${r.name || i + 1} 출금`,
+          op.parentId ? -1 : i,
         );
         add(
           r.toId,
@@ -326,6 +336,7 @@ export function operationPostings(
           r.time,
           `${i}-in`,
           `${op.title} · ${r.name || i + 1} 입금`,
+          op.parentId ? -1 : i,
         );
       });
     if (op.kind === "transit")
@@ -379,8 +390,8 @@ export function operationExpenses(ops: readonly Operation[]): Expense[] {
             ? "후불 하이패스"
             : "선불교통카드",
       paymentKind: "stored",
-      time: op.time,
-      useTime: op.time,
+      time: op.kind === "statement" ? op.payment?.time ?? null : op.time,
+      useTime: op.kind === "statement" ? op.payment?.time ?? null : op.time,
       useKind: op.kind === "statement" ? "period" : "once",
       useEnd: op.kind === "statement" ? date : null,
       revision: op.revision,
@@ -651,4 +662,16 @@ export function validateOperations(book: BookData, verifyingId?: string) {
     if (op.kind === "template" && !op.template)
       fail("템플릿의 원거래가 필요해요.");
   }
+}
+
+// 대표 날짜에 맞춰 두었던 단계만 함께 이동합니다. 개별 지정 날짜는 보존합니다.
+export function changeOperationDate(value: OperationInput, date: string): OperationInput {
+  return { ...value, date, rows: value.rows.map(r =>
+    value.kind === "transit" || (value.kind === "transfer" && r.date === value.date) ? { ...r, date } : r) };
+}
+export function transferOrderWarning(value: OperationInput): boolean {
+  return value.kind === "transfer" && value.rows.some((row, i) => {
+    const prev = value.rows[i - 1];
+    return prev && (row.date < prev.date || (row.date === prev.date && row.time !== null && prev.time !== null && row.time < prev.time));
+  });
 }

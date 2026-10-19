@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useBook } from "@/lib/use-operations";
 import {
   operationLabels,
+  transferOrderWarning,
   operationPostings,
   sharedRemaining,
   tollRemaining,
@@ -329,6 +330,7 @@ export function RecordPage({
           ) : null}
         </header>
         <div className="space-y-7 p-5 sm:p-8">
+          {transferOrderWarning(op) ? <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">단계 번호와 날짜·시각 순서가 달라요. 자산 원장은 실제 날짜·시각순으로 반영해요. 기록 수정에서 각 단계 날짜를 확인해 주세요.</p> : null}
           {op.sourceId && book.expenses.some((e) => e.id === op.sourceId) ? (
             <Link
               className="block text-sm text-primary"

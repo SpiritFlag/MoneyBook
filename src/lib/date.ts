@@ -24,10 +24,10 @@ export function shiftDate(value: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function todayInSeoul(): string {
+export function todayInSeoul(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(now);
   const value = (type: string) => parts.find((part) => part.type === type)!.value;
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
@@ -36,4 +36,18 @@ export function displayDate(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
     timeZone: "UTC", month: "long", day: "numeric", weekday: "long",
   }).format(new Date(`${value}T00:00:00Z`));
+}
+
+// 장부의 하루는 한국 시간 05:00부터 다음 날 04:59까지입니다.
+// 실제 날짜·시각과 은행 원장은 바꾸지 않습니다. 모르는 시각은 추정하지 않습니다.
+export function bookDate(date: string, time: string | null | undefined): string {
+  return time && time < "05:00" ? shiftDate(date, -1) : date;
+}
+export function todayInBook(now = new Date()): string {
+  return todayInSeoul(new Date(now.getTime() - 5 * 60 * 60 * 1000));
+}
+export function bookTimeOrder(time: string | null): number {
+  if (time === null) return 1440;
+  const [h, m] = time.split(":").map(Number);
+  return (h * 60 + m - 300 + 1440) % 1440;
 }

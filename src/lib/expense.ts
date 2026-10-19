@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseDateQuery } from "./date";
+import { bookDate, bookTimeOrder, parseDateQuery } from "./date";
 
 export const currencies = {
   KRW: { label: "원 · KRW", unit: "원", digits: 0 },
@@ -140,16 +140,16 @@ export function ownKrw(value: ExpenseInput): number | null {
   return Number((numerator * BigInt(2) + BigInt(paid)) / (BigInt(paid) * BigInt(2)));
 }
 export function appearsOnDay(value: ExpenseInput, date: string): boolean {
-  return value.paymentDate === date || (value.useKind === "once" && value.useDate === date);
+  return bookDate(value.paymentDate, value.time) === date || (value.useKind === "once" && bookDate(value.useDate, value.useTime) === date);
 }
 // 이용일에는 이용 시각을, 결제 기록으로만 나타난 날에는 결제 시각을 씁니다.
 export function dayTime(value: ExpenseInput, date: string): string | null {
-  return value.useKind === "once" && value.useDate === date ? value.useTime ?? null : value.time;
+  return value.useKind === "once" && bookDate(value.useDate, value.useTime) === date ? value.useTime ?? null : value.time;
 }
 export function dailyExpenses(values: readonly Expense[], date: string): Expense[] {
   const sorted = values.filter((value) => appearsOnDay(value, date)).sort((a, b) => {
     const left = dayTime(a, date), right = dayTime(b, date);
-    if (left !== right) return left === null ? 1 : right === null ? -1 : left.localeCompare(right);
+    if (left !== right) return bookTimeOrder(left) - bookTimeOrder(right);
     return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
   });
   return orderAroundReferences(sorted, (e) => dayTime(e, date) === null ? e.orderReference : null, (e) => e.orderSide);
@@ -165,11 +165,11 @@ export function orderAroundReferences<T extends { id: string }>(rows: T[], refer
   return result;
 }
 export function daySummary(values: Expense[], date: string) {
-  const consumption = values.filter((value) => value.useKind === "once" && value.useDate === date);
+  const consumption = values.filter((value) => value.useKind === "once" && bookDate(value.useDate, value.useTime) === date);
   return { total: consumption.reduce((sum, value) => sum + (ownKrw(value) ?? 0), 0), pending: consumption.filter((value) => ownKrw(value) === null).length };
 }
 export function monthAmount(value: ExpenseInput, month: string): number | null | undefined {
-  const start = value.useDate.slice(0, 7);
+  const start = (value.useKind === "once" ? bookDate(value.useDate, value.useTime) : value.useDate).slice(0, 7);
   if (value.useKind === "once" || value.allocation === "start") return start === month ? ownKrw(value) : undefined;
   const [year, m] = month.split("-").map(Number);
   const [sy, sm] = start.split("-").map(Number);

@@ -91,7 +91,7 @@ test("이용 시각으로 정렬하고 미확인은 마지막, 결제일만 일�
     { ...base, id: "payment-only", useDate: "2026-10-17", useTime: "22:00", time: "12:00" },
     { ...base, id: "midnight", useTime: "00:00" },
   ];
-  assert.deepEqual(dailyExpenses(input, "2026-10-18").map((e) => e.id), ["midnight", "early", "payment-only", "late", "unknown"]);
+  assert.deepEqual(dailyExpenses(input, "2026-10-18").map((e) => e.id), ["early", "payment-only", "midnight", "late", "unknown"]);
   assert.equal(input[0].id, "unknown");
   assert.deepEqual(dailyExpenses(input, "2026-10-19"), []);
   const tied = [{ ...base, id: "b", useTime: "09:00" }, { ...base, id: "a", useTime: "09:00" }];

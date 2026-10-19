@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { displayDate, parseDateParts, shiftDate, todayInSeoul } from "@/lib/date";
+import { displayDate, parseDateParts, shiftDate, todayInBook } from "@/lib/date";
 
 type Props = { date: string; onDateChange: (date: string) => void };
 
@@ -30,7 +30,7 @@ export function DateNavigator({ date, onDateChange }: Props) {
         </form>
       </details>
       <Button variant="ghost" size="icon-sm" aria-label="다음 날" className="text-primary/65 hover:bg-white/70" disabled={date === "9999-12-31"} onClick={() => onDateChange(shiftDate(date, 1))}><ChevronRight /></Button>
-      <Button variant="ghost" size="sm" className="ml-1 rounded-full px-2.5 text-xs text-primary/80 hover:bg-white/70" onClick={() => onDateChange(todayInSeoul())}>오늘</Button>
+      <Button variant="ghost" size="sm" className="ml-1 rounded-full px-2.5 text-xs text-primary/80 hover:bg-white/70" onClick={() => onDateChange(todayInBook())}>오늘</Button>
     </div>
   );
 }

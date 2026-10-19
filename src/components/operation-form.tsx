@@ -17,6 +17,8 @@ import {
 } from "./operation-editors";
 import {
   newOperation,
+  incomeCategories,
+  changeOperationDate,
   newRow,
   operationLabels,
   operationInputSchema,
@@ -90,7 +92,7 @@ export function OperationForm({
           {operationLabels[kind]} {existing ? "수정" : "기록"}
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          금액과 맥락을 함께 남기고, 연결된 원장에서 확인하세요.
+          실제 달력 날짜·시각을 입력하세요. 05시 전 기록은 전날의 하루 내역에 표시돼요.
         </p>
       </header>
       <form
@@ -145,16 +147,7 @@ export function OperationForm({
                 <DateTimeFields
                   date={value.date}
                   time={value.time}
-                  onDate={(date) =>
-                    change({
-                      ...value,
-                      date,
-                      rows:
-                        kind === "transit"
-                          ? value.rows.map((r) => ({ ...r, date }))
-                          : value.rows,
-                    })
-                  }
+                  onDate={(date) => change(changeOperationDate(value, date))}
                   onTime={(time) => change({ ...value, time })}
                 />
                 {kind !== "transfer" ? (
@@ -168,6 +161,7 @@ export function OperationForm({
                     onChange={(amount) => change({ ...value, amount })}
                   />
                 ) : null}
+                {kind === "income" ? <Field label="수입 종류"><select className="form-control" value={value.incomeCategory} onChange={e => change({ ...value, incomeCategory: e.target.value as OperationInput["incomeCategory"] })}>{Object.entries(incomeCategories).map(([key, category]) => <option key={key} value={key}>{category.label}</option>)}</select></Field> : null}
                 {["income", "recovery"].includes(kind) ? (
                   <Field label="통화">
                     <select

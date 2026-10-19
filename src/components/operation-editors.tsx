@@ -5,6 +5,7 @@ import { currencies, formatMinor } from "@/lib/expense";
 import { rateUnits, valueInWon } from "@/lib/asset";
 import {
   newRow,
+  transferOrderWarning,
   statementRows,
   sharedRemaining,
   tollRemaining,
@@ -116,6 +117,7 @@ export function DateTimeFields({
 export function TransferEditor({ value, change, book }: EditorProps) {
   return (
     <div className="space-y-5">
+      {transferOrderWarning(value) ? <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">단계 번호와 날짜·시각 순서가 달라요. 자산 원장은 실제 날짜·시각순으로 계산하니 각 단계 날짜를 확인해 주세요.</p> : null}
       {value.rows.map((row, index) => {
         const from = book.assets.find((a) => a.id === row.fromId),
           to = book.assets.find((a) => a.id === row.toId);
@@ -258,7 +260,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
         onClick={() =>
           change({
             ...value,
-            rows: [...value.rows, newRow(value.date, crypto.randomUUID())],
+            rows: [...value.rows, newRow(value.rows.at(-1)?.date ?? value.date, crypto.randomUUID())],
           })
         }
       >
