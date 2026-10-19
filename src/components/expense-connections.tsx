@@ -1,6 +1,7 @@
 "use client";
 import { useBook } from "@/lib/use-operations";
-import { toMinor, type ExpenseInput } from "@/lib/expense";
+import { dayTime, expenseOrderReferences, toMinor, type ExpenseInput } from "@/lib/expense";
+import { bookDate } from "@/lib/date";
 import { valueInWon } from "@/lib/asset";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
@@ -38,9 +39,8 @@ export function ExpenseConnections({
           rate: r.rate,
         })),
     );
-  const reference = book.expenses.filter(
-    (e) => e.id !== id && e.useKind === "once" && e.useDate === value.useDate,
-  );
+  const reference = expenseOrderReferences(book.expenses, value, id);
+  const fixedCurrency = book.gameCurrencies?.find(c => c.code === value.currency);
   return (
     <div className="mt-5 space-y-5">
       {value.useKind === "once" && value.useTime === null ? (
@@ -59,7 +59,7 @@ export function ExpenseConnections({
               <option value="">기본 순서 · 시각 확인 거래 다음</option>
               {reference.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.title} · {e.useTime ?? "시각 미확인"}
+                  {e.title} · {e.useKind === "period" ? "기간형 결제 · " : ""}{dayTime(e, bookDate(value.useDate, value.useTime)) ?? "시각 미확인"}
                 </option>
               ))}
             </select>
@@ -75,13 +75,14 @@ export function ExpenseConnections({
                 })
               }
             >
-              <option value="before">기준 위</option>
-              <option value="after">기준 아래</option>
+              <option value="before">기준 거래 이전</option>
+              <option value="after">기준 거래 다음</option>
             </select>
           </Field>
         </div>
       ) : null}
       {value.currency !== "KRW" &&
+      !fixedCurrency &&
       value.paymentKind !== "card" &&
       rates.length ? (
         <Field
@@ -116,7 +117,7 @@ export function ExpenseConnections({
           </select>
         </Field>
       ) : null}
-      {value.valuationRate !== null ? (
+      {!fixedCurrency && value.valuationRate !== null ? (
         <div className="rounded-xl bg-secondary/50 p-4 text-xs leading-6">
           고정한 평가 환율 · 1 {value.currency} = {value.valuationRate}원. 금액
           변경 시 원화 확정액도 확인하세요.

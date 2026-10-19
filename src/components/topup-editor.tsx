@@ -10,11 +10,13 @@ export function TopupEditor({
   change,
   assets,
   cards,
+  fixedRate,
 }: {
   value: ExpenseInput;
   change: (value: ExpenseInput) => void;
   assets: Asset[];
   cards: Card[];
+  fixedRate?: string;
 }) {
   const t = value.topup;
   const patch = (next: Partial<NonNullable<ExpenseInput["topup"]>>) => {
@@ -48,7 +50,7 @@ export function TopupEditor({
                     sameTime: true,
                     date: value.paymentDate,
                     time: null,
-                    rate: "",
+                    rate: fixedRate ?? "",
                   }
                 : null,
             })
@@ -132,7 +134,7 @@ export function TopupEditor({
               </Field>
             </div>
           ) : null}
-          {value.currency !== "KRW" ? (
+          {value.currency !== "KRW" && fixedRate === undefined ? (
             <Button
               type="button"
               variant="secondary"

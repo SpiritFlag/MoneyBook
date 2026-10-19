@@ -6,6 +6,8 @@ import { currencyInfo, formatMinor } from "@/lib/expense";
 import { rateUnits, valueInWon } from "@/lib/asset";
 import {
   newRow,
+  transferDiscounts,
+  transferDiscountTotal,
   transferOrderWarning,
   statementRows,
   sharedRemaining,
@@ -125,6 +127,9 @@ export function TransferEditor({ value, change, book }: EditorProps) {
             ),
           });
         const amount = to ? toMinor(row.received, to.currency) : null;
+        const discounts = transferDiscounts(row);
+        const sourceCurrency = row.cardId !== undefined ? "KRW" : from?.currency ?? "KRW";
+        const changeDiscounts = (next: typeof discounts) => patch({ discounts: next, discount: "0" });
         const won =
           amount !== null && to && row.rate && rateUnits(row.rate) !== null
             ? valueInWon(amount, to.currency, row.rate)
@@ -198,7 +203,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
             </div>
             <details
               className="mt-5"
-              open={row.baseAmount !== "" || row.baseReceived !== ""}
+              open={row.baseAmount !== "" || row.baseReceived !== "" || discounts.length > 0}
             >
               <summary className="text-sm font-medium text-primary">
                 환전·충전의 할인, 보너스, 평가 기준
@@ -209,11 +214,28 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                   value={row.baseAmount}
                   onChange={(baseAmount) => patch({ baseAmount })}
                 />
-                <MoneyField
-                  label="포인트·쿠폰 할인"
-                  value={row.discount}
-                  onChange={(discount) => patch({ discount })}
-                />
+                <div />
+                <fieldset className="min-w-0 space-y-3 sm:col-span-2">
+                  <legend className="mb-3 text-sm font-medium">포인트·쿠폰 할인 · {sourceCurrency}</legend>
+                  {discounts.map((discount, di) => (
+                    <div key={discount.id} className="grid min-w-0 gap-3 rounded-xl bg-background/70 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                      <Field label={`이동 ${index + 1} 할인 ${di + 1} 이름`}>
+                        <input lang="ko" inputMode="text" className="form-control" maxLength={120} required value={discount.name}
+                          placeholder="예: 삼성전자 포인트"
+                          onChange={e => changeDiscounts(discounts.map((d, i) => i === di ? { ...d, name: e.target.value } : d))} />
+                      </Field>
+                      <MoneyField label={`이동 ${index + 1} 할인 ${di + 1} 금액 · ${sourceCurrency}`} value={discount.amount}
+                        onChange={amount => changeDiscounts(discounts.map((d, i) => i === di ? { ...d, amount } : d))} />
+                      <Button type="button" variant="ghost" size="sm" aria-label={`이동 ${index + 1} 할인 ${di + 1} 삭제`}
+                        onClick={() => changeDiscounts(discounts.filter((_, i) => i !== di))}>삭제</Button>
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Button type="button" variant="secondary" size="sm" disabled={discounts.length >= 30}
+                      onClick={() => changeDiscounts([...discounts, { id: crypto.randomUUID(), name: "", amount: "" }])}>할인 추가</Button>
+                    <p className="text-sm font-medium text-primary">할인 합계 {formatMinor(transferDiscountTotal(row, sourceCurrency), sourceCurrency)}</p>
+                  </div>
+                </fieldset>
                 <MoneyField
                   label="기본 수령량"
                   value={row.baseReceived}

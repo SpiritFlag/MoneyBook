@@ -38,7 +38,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   const errorRef = useRef<HTMLDivElement>(null);
   function change(next: ExpenseInput) {
     const definition = currencyDefinitions.data?.find(c => c.code === next.currency);
-    if (definition && (next.currency !== value.currency || next.paidAmount !== value.paidAmount)) {
+    if (definition) {
       const amount = toMinor(next.paidAmount, next.currency);
       const won = amount === null ? null : valueInWon(amount, next.currency, definition.fixedRate);
       next = { ...next, krwAmount: won === null ? null : String(won), valuationRate: definition.fixedRate, valuationSource: "재화 고정 환율" };
@@ -63,6 +63,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
     if (!dirty || window.confirm("저장하지 않은 입력이 있어요. 입력을 버리고 돌아갈까요?")) router.push(existing ? `/transactions/${existing.id}` : `/?date=${date}`);
   }
   const card = value.paymentKind === "card";
+  const fixedCurrency = currencyDefinitions.data?.find(c => c.code === value.currency);
   const personalKrw = ownKrw(value);
   return <>
     <header className="mb-7 flex flex-wrap items-center justify-between gap-3"><div><Button type="button" variant="ghost" size="sm" className="mb-3 -ml-3 text-muted-foreground" onClick={cancel}><ArrowLeft size={16} />{existing ? "상세로 돌아가기" : "일일 내역으로"}</Button><h1 className="text-3xl font-bold tracking-tight">{existing ? "지출 수정" : "지출 기록"}</h1><p className="mt-2 text-sm text-muted-foreground">결제한 총액부터, 기억나는 이야기까지.</p></div><span className="demo-badge">나의 장부</span></header>
@@ -108,11 +109,11 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
             </div>
             {value.useKind === "period" ? <div className="mt-5"><Field label="월간 소비 반영"><select className="form-control" value={value.allocation} onChange={(e) => field("allocation", e.target.value as ExpenseInput["allocation"])}><option value="start">시작월에 전액</option><option value="annual">연간 결제 · 12개월 배분</option></select></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">기간형은 일일 소비에 더하지 않고 월간 정기지출에 반영해요. 연간 배분의 원 단위 나머지는 첫 달에 더해요.</p></div> : null}
           </FormSection>
-          {!card && assets.data ? <TopupEditor value={value} change={change} assets={assets.data} cards={cards.data ?? []} /> : null}
+          {!card && assets.data ? <TopupEditor value={value} change={change} assets={assets.data} cards={cards.data ?? []} fixedRate={fixedCurrency?.fixedRate} /> : null}
           <FormSection number="04" title="내가 부담한 금액">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.shared} onChange={(e) => change({ ...value, shared: e.target.checked, ownAmount: e.target.checked ? value.ownAmount ?? (value.paidAmount || "0") : null })} />다른 사람과 비용을 나눴어요</label>
             {value.shared ? <div className="mt-4"><Field label="본인 부담액" hint="결제 전체액은 유지하고 내 몫만 소비로 반영해요."><input className="form-control" inputMode="decimal" value={value.ownAmount ?? ""} onChange={(e) => field("ownAmount", e.target.value)} /></Field></div> : null}
-            {value.currency !== "KRW" ? <div className="mt-5"><Field label={card ? "확정 원화 청구액 (선택)" : "확정 원화 평가액 (선택)"} hint="실제 결제 전체액의 원화 금액이에요. 모르면 비워 두고 나중에 수정하세요. 임의 환율로 합산하지 않아요."><input className="form-control" inputMode="numeric" value={value.krwAmount ?? ""} placeholder="원화 미확정" onChange={(e) => field("krwAmount", e.target.value || null)} /></Field></div> : null}
+            {fixedCurrency ? <p className="mt-5 rounded-xl bg-secondary/50 p-4 text-sm">재화 고정 환율 · 1 {value.currency} = {fixedCurrency.fixedRate}원 · 원화 소비는 자동 계산해요.</p> : value.currency !== "KRW" ? <div className="mt-5"><Field label={card ? "확정 원화 청구액 (선택)" : "확정 원화 평가액 (선택)"} hint="실제 결제 전체액의 원화 금액이에요. 모르면 비워 두고 나중에 수정하세요. 임의 환율로 합산하지 않아요."><input className="form-control" inputMode="numeric" value={value.krwAmount ?? ""} placeholder="원화 미확정" onChange={(e) => field("krwAmount", e.target.value || null)} /></Field></div> : null}
           </FormSection>
           <ExpenseConnections value={value} change={change} id={existing?.id} />
           <FormSection number="05" title="메모"><Field label="기억해 둘 내용 (선택)"><textarea lang="ko" inputMode="text" className="form-control min-h-24 resize-y" maxLength={2000} placeholder="영수증에서 확인할 내용이나 거래의 맥락을 남겨보세요." value={value.memo} onChange={(e) => field("memo", e.target.value)} /></Field></FormSection>

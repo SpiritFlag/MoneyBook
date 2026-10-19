@@ -59,10 +59,10 @@ export function createBookRepository(storage: BookStorage) {
       input = expenseInputSchema.parse(input);
       for (const code of [input.currency, input.receiptCurrency]) if (isCustomCurrency(code) && !book.gameCurrencies.some(c => c.code === code)) throw new RepositoryError("먼저 게임 재화를 등록해 주세요.", 400);
       const definition = book.gameCurrencies.find(c => c.code === input.currency);
-      if (definition && input.krwAmount === null) {
+      if (definition) {
         const won = valueInWon(toMinor(input.paidAmount, input.currency)!, input.currency, definition.fixedRate);
         if (won === null) throw new RepositoryError("원화 평가액 범위를 확인해 주세요.", 400);
-        input = { ...input, krwAmount: String(won), valuationRate: definition.fixedRate, valuationSource: "manual" };
+        input = { ...input, krwAmount: String(won), valuationRate: definition.fixedRate, valuationSource: "재화 고정 환율" };
       }
       if (input.assetId) {
         const asset = book.assets.find((a) => a.id === input.assetId);

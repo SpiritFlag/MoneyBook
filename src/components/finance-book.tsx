@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useBook } from "@/lib/use-operations";
 import {
   operationLabels,
+  transferDiscounts,
+  transferDiscountTotal,
   transferOrderWarning,
   operationPostings,
   sharedRemaining,
@@ -377,11 +379,14 @@ export function RecordPage({
                         </p>
                         {r.baseAmount ? (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            기준 금액 {r.baseAmount} − 할인 {r.discount} · 기본
+                            기준 금액 {r.baseAmount} − 할인 합계 {formatMinor(transferDiscountTotal(r, r.cardId ? "KRW" : book.assets.find(a => a.id === r.fromId)?.currency ?? "KRW"), r.cardId ? "KRW" : book.assets.find(a => a.id === r.fromId)?.currency ?? "KRW")} · 기본
                             수령 {r.baseReceived} + 보너스 {r.bonus} · 평가 환율{" "}
                             {r.rate || "미입력"}원
                           </p>
                         ) : null}
+                        {transferDiscounts(r).length > 0 ? <ul className="mt-3 space-y-2 text-sm text-primary" aria-label="포인트·쿠폰 할인 내역">
+                          {transferDiscounts(r).map(discount => <li key={discount.id} className="flex justify-between gap-3"><span className="min-w-0 break-words">{discount.name}</span><span className="shrink-0 tabular-nums">−{formatMoney(discount.amount, r.cardId ? "KRW" : book.assets.find(a => a.id === r.fromId)?.currency ?? "KRW")}</span></li>)}
+                        </ul> : null}
                       </>
                     ) : (
                       <p className="mt-3 text-sm">

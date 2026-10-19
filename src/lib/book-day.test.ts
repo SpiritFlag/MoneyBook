@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bookDate, todayInBook } from "./date";
-import { appearsOnDay, dailyExpenses, daySummary, monthAmount, newExpense, type Expense } from "./expense";
+import { appearsOnDay, dailyExpenses, expenseOrderReferences, daySummary, monthAmount, newExpense, type Expense } from "./expense";
 import { dailyRecords } from "./daily-records";
 import { changeOperationDate, newOperation, newRow, operationSchema, operationPostings, transferOrderWarning, type Operation } from "./operations";
 import { newAsset, assetLedger, type Asset } from "./asset";
 const meta = { revision: 1, createdAt: "2026-10-01", updatedAt: "2026-10-01" };
+test("시각 미확인 소비는 같은 장부일의 기간형 결제와 새벽 거래도 순서 기준으로 고른다", () => {
+  const game = expense("game", "2026-10-01", null);
+  const subscription = { ...expense("카카오T", "2026-10-01", "10:19"), useKind: "period" as const, useDate: "2026-10-03", useEnd: "2026-11-02" };
+  const dawn = expense("dawn", "2026-10-02", "01:00");
+  const previousDay = expense("previous", "2026-10-01", "04:59");
+  const nextDay = expense("next", "2026-10-02", "05:00");
+  const values = [game, subscription, dawn, previousDay, nextDay];
+  assert.deepEqual(expenseOrderReferences(values, game, game.id).map(e => e.id), ["카카오T", "dawn"]);
+  const ordered = values.map(e => e.id === game.id ? { ...e, orderReference: subscription.id, orderSide: "after" as const } : e);
+  assert.deepEqual(dailyRecords(dailyExpenses(ordered, "2026-10-01"), [], "2026-10-01").map(r => r.id), ["카카오T", "game", "dawn"]);
+  assert.equal(daySummary(ordered, "2026-10-01").total, 2000);
+});
 function expense(id: string, date: string, time: string | null): Expense {
   return { ...newExpense(date), ...meta, id, title: id, paymentMethod: "지갑", paidAmount: "1000", time, useTime: time };
 }

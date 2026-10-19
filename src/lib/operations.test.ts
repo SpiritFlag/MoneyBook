@@ -14,6 +14,9 @@ import { newAsset, assetPosition, assetLedger, type Asset } from "./asset";
 import {
   newOperation,
   newRow,
+  operationSchema,
+  transferDiscounts,
+  transferDiscountTotal,
   validateOperations,
   operationPostings,
   consumptionRecords,
@@ -71,6 +74,34 @@ const makeBook = (expenses: Expense[], operations: Operation[]): BookData => ({
   expenses,
   operations,
   assets: [asset(), asset("stored", "stored"), asset("usd", "cash", "USD")],
+});
+
+test("이동 할인은 이름별로 저장하고 합계를 검증하며 기존 할인도 유지한다", () => {
+  const row = { ...newRow(date, "charge"), cardId: "card", toId: "stored",
+    amount: "2680", received: "9900", baseAmount: "99000", baseReceived: "9900", rate: "10",
+    discounts: [
+      { id: "point", name: "삼성전자 포인트", amount: "96000" },
+      { id: "coupon", name: "충전 쿠폰", amount: "320" },
+    ] };
+  const transfer = operationSchema.parse(op("transfer", { rows: [row] }));
+  const book = { ...makeBook([], [transfer]), cards: [{ id: "card" }] } as BookData;
+  assert.deepEqual(transfer.rows[0].discounts, row.discounts);
+  assert.equal(transferDiscountTotal(row, "KRW"), 96320);
+  validateOperations(book);
+  const check = (patch: Partial<typeof row>) => validateOperations({ ...book, operations: [{ ...transfer, rows: [{ ...row, ...patch }] }] });
+  assert.throws(() => check({ amount: "2681" }), /할인 합계/);
+  assert.throws(() => check({ discounts: [{ id: "x", name: " ", amount: "96320" }] }), /할인 이름/);
+  for (const amount of ["-1", "abc", "1.5", ""]) {
+    assert.throws(() => check({ discounts: [{ id: "x", name: "포인트", amount }] }), /금액/);
+  }
+  check({ discounts: [], amount: "99000", discount: "96320" });
+  const legacy = operationSchema.parse(op("transfer", { rows: [{ ...row, discounts: undefined, discount: "96320" }] }));
+  assert.equal(transferDiscounts(legacy.rows[0])[0].amount, "96320");
+  validateOperations({ ...book, operations: [legacy] });
+  const foreign = { ...row, cardId: undefined, fromId: "usd", baseAmount: "1.00", amount: "0.70", received: "1", baseReceived: "1",
+    discounts: [{ id: "a", name: "포인트", amount: "0.10" }, { id: "b", name: "쿠폰", amount: "0.20" }] };
+  assert.equal(transferDiscountTotal(foreign, "USD"), 30);
+  validateOperations({ ...book, operations: [op("transfer", { rows: [foreign] })] });
 });
 
 test("분담금 회수는 실제 입금만 만들고 본인 소비를 재차 줄이지 않는다", () => {

@@ -53,6 +53,7 @@ const rowSchema = z.object({
   received: amount,
   baseAmount: amount,
   discount: amount,
+  discounts: z.array(z.object({ id: text, name: text, amount })).max(30).optional(),
   baseReceived: amount,
   bonus: amount,
   rate: amount,
@@ -60,6 +61,15 @@ const rowSchema = z.object({
   route: text,
 });
 export type OperationRow = z.infer<typeof rowSchema>;
+// Older records only stored a total. An explicit empty list means all discounts were removed.
+export function transferDiscounts(row: OperationRow) {
+  return row.discounts ?? (row.discount !== "" && row.discount !== "0"
+    ? [{ id: `${row.id}-discount`, name: "포인트·쿠폰 할인", amount: row.discount }]
+    : []);
+}
+export function transferDiscountTotal(row: OperationRow, currency: Currency) {
+  return transferDiscounts(row).reduce((sum, discount) => sum + (toMinor(discount.amount, currency) ?? 0), 0);
+}
 export const operationInputSchema = z.object({
   kind: z.enum([
     "income",
@@ -483,13 +493,20 @@ export function validateOperations(book: BookData, verifyingId?: string) {
         const sourceCurrency = from?.currency ?? "KRW";
         money(row.amount, sourceCurrency);
         money(row.received, to.currency);
-        if (row.baseAmount !== "" || row.baseReceived !== "") {
+        const discounts = transferDiscounts(row);
+        if (new Set(discounts.map(d => d.id)).size !== discounts.length)
+          fail("할인 ID가 중복되었어요.");
+        const discountTotal = discounts.reduce((sum, d) => {
+          if (!d.name.trim()) fail("할인 이름을 입력해 주세요.");
+          return sum + money(d.amount, sourceCurrency);
+        }, 0);
+        if (row.baseAmount !== "" || row.baseReceived !== "" || discounts.length > 0) {
           if (
             money(row.baseAmount, sourceCurrency) -
-              money(row.discount, sourceCurrency) !==
+              discountTotal !==
             money(row.amount, sourceCurrency)
           )
-            fail("기준 교환 금액 − 할인은 실제 출금액과 같아야 해요.");
+            fail("기준 교환 금액 − 할인 합계는 실제 출금액과 같아야 해요.");
           if (
             money(row.baseReceived, to.currency) +
               money(row.bonus, to.currency) !==

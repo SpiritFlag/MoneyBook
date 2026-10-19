@@ -12,6 +12,34 @@ function fixture() {
   const repo = createBookRepository({ read: async () => structuredClone(book), transact: async fn => fn(structuredClone(book), async next => { book = structuredClone(next); }) });
   return { repo, read: () => book };
 }
+
+test("등록 재화 소비는 충전 환율이나 수동 원화액 대신 재화 고정환율로 저장한다", async () => {
+  const { repo, read } = fixture();
+  await repo.saveGameCurrency({ code: "MCASH", fixedRate: "10" }, null);
+  await repo.save({ ...newExpense(date), title: "마비노기 모바일", paymentKind: "stored", paymentMethod: "M캐시", currency: "MCASH", receiptCurrency: "MCASH", paidAmount: "5900", krwAmount: "1", valuationRate: "0.01", valuationSource: "linked-topup" }, "game", null);
+  assert.equal(read().expenses[0].krwAmount, "59000");
+  assert.equal(read().expenses[0].valuationRate, "10");
+  assert.equal(read().expenses[0].valuationSource, "재화 고정 환율");
+  const saved = (await repo.list())[0];
+  await repo.save({ ...saved, paidAmount: "6000" }, saved.id, saved.revision);
+  assert.equal(read().expenses[0].krwAmount, "60000");
+});
+
+test("여러 충전 할인은 저장·재조회·수정 후에도 이름과 금액을 보존한다", async () => {
+  const { repo } = fixture();
+  await repo.saveAsset({ ...newAsset(date), name: "은행", openingBalance: "100000" }, "bank", null);
+  await repo.saveAsset({ ...newAsset(date), name: "M캐시", kind: "stored", currency: "MCASH", openingBalance: "0" }, "wallet", null);
+  const discounts = [{ id: "point", name: "삼성전자 포인트", amount: "96000" }, { id: "coupon", name: "쿠폰", amount: "320" }];
+  const transfer = { ...newOperation("transfer", date), rows: [{ ...newRow(date, "step"), fromId: "bank", toId: "wallet", amount: "2680", received: "9900", baseAmount: "99000", baseReceived: "9900", rate: "10", discounts }] };
+  await repo.saveOperation(transfer, "topup", null);
+  const saved = (await repo.listOperations())[0];
+  assert.deepEqual(saved.rows[0].discounts, discounts);
+  await repo.saveOperation({ ...saved, rows: [{ ...saved.rows[0], discounts: [{ ...discounts[0], name: "삼성전자 포인트 할인", amount: "96320" }] }] }, saved.id, saved.revision);
+  const updated = (await repo.listOperations())[0];
+  assert.equal(updated.rows[0].discounts?.[0].name, "삼성전자 포인트 할인");
+  await repo.saveOperation({ ...updated, rows: [{ ...updated.rows[0], discounts: [], amount: "99000" }] }, updated.id, updated.revision);
+  assert.deepEqual((await repo.listOperations())[0].rows[0].discounts, []);
+});
 test("게임 재화 정의는 자산마다 공유하고 과거 소비 환산과 계정은 독립적으로 보존한다", async () => {
   const { repo, read } = fixture(), other = fixture();
   const code = "예시 골드";

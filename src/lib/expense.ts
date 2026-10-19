@@ -154,6 +154,10 @@ export function appearsOnDay(value: ExpenseInput, date: string): boolean {
 export function dayTime(value: ExpenseInput, date: string): string | null {
   return value.useKind === "once" && bookDate(value.useDate, value.useTime) === date ? value.useTime ?? null : value.time;
 }
+export function expenseOrderReferences(values: readonly Expense[], value: ExpenseInput, id?: string) {
+  const date = bookDate(value.useDate, value.useTime);
+  return dailyExpenses(values, date).filter(e => e.id !== id);
+}
 export function dailyExpenses(values: readonly Expense[], date: string): Expense[] {
   const sorted = values.filter((value) => appearsOnDay(value, date)).sort((a, b) => {
     const left = dayTime(a, date), right = dayTime(b, date);
