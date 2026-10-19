@@ -1,0 +1,68 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createBookRepository, storedSchema, type Book } from "./expense-repository";
+import { newAsset, assetPosition } from "./asset";
+import { newExpense, formatMoney, toMinor } from "./expense";
+import { newOperation, newRow, operationPostings, statementRows, consumptionRecords } from "./operations";
+
+const date = "2026-10-19";
+const cardId = "c952eb9c-61bc-4687-9245-db467ea023f5";
+function fixture() {
+  let book: Book = storedSchema.parse({ version: 1, expenses: [], assets: [], operations: [] });
+  const repo = createBookRepository({ read: async () => structuredClone(book), transact: async fn => fn(structuredClone(book), async next => { book = structuredClone(next); }) });
+  return { repo, read: () => book };
+}
+test("게임 재화 정의는 자산마다 공유하고 과거 소비 환산과 계정은 독립적으로 보존한다", async () => {
+  const { repo, read } = fixture(), other = fixture();
+  const code = "예시 골드";
+  await repo.saveGameCurrency({ code, fixedRate: "0.25" }, null);
+  await repo.saveAsset({ ...newAsset(date), name: "게임 지갑", kind: "stored", currency: code, openingBalance: "100", valuationRate: "999" }, "wallet", null);
+  assert.equal(read().assets[0].valuationRate, "0.25");
+  assert.equal(formatMoney("100", code), "100 예시 골드");
+  assert.equal(toMinor("0.1", code), null);
+  await repo.save({ ...newExpense(date), title: "재화 사용", paymentMethod: "게임 지갑", paymentKind: "stored", currency: code, receiptCurrency: code, assetId: "wallet", paidAmount: "20" }, "expense", null);
+  assert.equal(read().expenses[0].krwAmount, "5");
+  await repo.saveGameCurrency({ code, fixedRate: "0.5" }, 1);
+  assert.equal(read().assets[0].valuationRate, "0.5");
+  assert.equal(read().expenses[0].krwAmount, "5");
+  assert.equal(assetPosition(read().assets[0], read().expenses, date).won, 40);
+  assert.deepEqual(await other.repo.listGameCurrencies(), []);
+  await assert.rejects(other.repo.saveAsset({ ...newAsset(date), name: "다른 계정", currency: code }, "x", null), /먼저 게임 재화/);
+  await assert.rejects(repo.saveGameCurrency({ code, fixedRate: "1" }, 1), /바뀌었어요/);
+});
+test("카드 충전은 수령 자산과 카드 청구만 만들고 납부 시 계좌에서 한 번 출금한다", async () => {
+  const { repo, read } = fixture();
+  await repo.saveCard({ name: "검증 카드", issuer: "" }, cardId);
+  await repo.saveAsset({ ...newAsset(date), name: "은행", openingBalance: "100000" }, "bank", null);
+  await repo.saveAsset({ ...newAsset(date), name: "M캐시 지갑", kind: "stored", currency: "MCASH", openingBalance: "0" }, "wallet", null);
+  const transfer = { ...newOperation("transfer", date), rows: [{ ...newRow(date, "step"), cardId, toId: "wallet", amount: "9000", received: "10000" }] };
+  await assert.rejects(repo.saveOperation({ ...transfer, rows: [{ ...transfer.rows[0], cardId: "missing" }] }, "invalid", null), /신용카드/);
+  await repo.saveOperation(transfer, "topup", null);
+  assert.equal(consumptionRecords(read().expenses, read().operations).length, 0);
+  let postings = operationPostings(read().operations, read().assets);
+  assert.equal(postings.length, 1);
+  assert.equal(postings[0].amount, 10000);
+  const statement = { ...newOperation("statement", date), card: "검증 카드", amount: "9000", selected: ["transfer:topup/step"], verified: true };
+  assert.equal(statementRows(statement, read())[0].amount, 9000);
+  await repo.saveOperation(statement, "statement", null);
+  await assert.rejects(repo.saveOperation({ ...transfer, rows: [{ ...transfer.rows[0], amount: "8000" }] }, "topup", 1), /총액/);
+  await repo.saveOperation({ ...statement, payment: { assetId: "bank", date, time: "18:30", amount: "9000" } }, "statement", 1);
+  await repo.saveCard({ name: "바뀐 카드", issuer: "" }, cardId, 1);
+  assert.equal(read().operations.find(o => o.id === "statement")?.card, "바뀐 카드");
+  assert.equal(read().operations.find(o => o.id === "topup")?.rows[0].cardId, cardId);
+  postings = operationPostings(read().operations, read().assets);
+  assert.equal(assetPosition(read().assets[0], [], date, postings).balance, 91000);
+  assert.equal(consumptionRecords(read().expenses, read().operations).length, 0);
+  assert.equal(statementRows({ ...newOperation("statement", "2026-11-19"), card: "바뀐 카드" }, read()).length, 0);
+});
+test("지출 안에서 카드로 충전해도 승인과 사용은 원자 저장하며 중복 생성하지 않는다", async () => {
+  const { repo, read } = fixture();
+  await repo.saveCard({ name: "충전 카드", issuer: "" }, cardId);
+  await repo.saveAsset({ ...newAsset(date), name: "재화 지갑", kind: "stored", currency: "MCASH", openingBalance: "0" }, "wallet", null);
+  const expense = { ...newExpense(date), title: "아이템", paymentMethod: "재화 지갑", paymentKind: "stored" as const, assetId: "wallet", currency: "MCASH", receiptCurrency: "MCASH", paidAmount: "100", topup: { fromId: "", cardId, amount: "900", received: "1000", sameTime: true, date, time: null, rate: "1" } };
+  await repo.save(expense, "purchase", null);
+  await repo.save(expense, "purchase", null);
+  assert.equal(read().operations.length, 1);
+  assert.equal(statementRows({ ...newOperation("statement", date), card: "충전 카드" }, read()).length, 1);
+  assert.equal(assetPosition(read().assets[0], read().expenses, date, operationPostings(read().operations, read().assets)).balance, 900);
+});

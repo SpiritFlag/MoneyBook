@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { currencies, toMinor, orderAroundReferences, type Currency, type Expense } from "./expense";
+import { currencyInfo, toMinor, orderAroundReferences, type Currency, type Expense } from "./expense";
 import { parseDateQuery } from "./date";
 
 export const assetKinds = { account: "계좌", cash: "현금", stored: "충전 잔액·재화" } as const;
-const currencySchema = z.enum(["KRW", "USD", "EUR", "JPY", "MCASH", "RC"]);
+import { currencySchema } from "./currency";
 export function signedMinor(value: string, currency: Currency): number | null {
   const negative = value.startsWith("-");
   const amount = toMinor(negative ? value.slice(1) : value, currency);
@@ -20,7 +20,7 @@ export function valueInWon(amount: number, currency: Currency, rate: string | nu
   const units = rate === null ? null : rateUnits(rate);
   if (units === null) return null;
   const numerator = BigInt(Math.abs(amount)) * units;
-  const denominator = BigInt(10 ** currencies[currency].digits) * BigInt(100_000_000);
+  const denominator = BigInt(10 ** currencyInfo(currency).digits) * BigInt(100_000_000);
   const rounded = (numerator * BigInt(2) + denominator) / (denominator * BigInt(2));
   if (rounded > BigInt(Number.MAX_SAFE_INTEGER)) return null;
   return Number(rounded) * (amount < 0 ? -1 : 1);

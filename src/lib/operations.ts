@@ -1,3 +1,4 @@
+import { currencySchema, type GameCurrency } from "./currency";
 import type { Card } from "./card";
 import { z } from "zod";
 import {
@@ -46,6 +47,7 @@ const rowSchema = z.object({
   date,
   time,
   fromId: text,
+  cardId: text.optional(),
   toId: text,
   amount,
   received: amount,
@@ -75,7 +77,7 @@ export const operationInputSchema = z.object({
   title: z.string().trim().min(1, "기록 이름을 입력해 주세요.").max(120),
   date,
   time,
-  currency: z.enum(["KRW", "USD", "EUR", "JPY", "MCASH", "RC"]),
+  currency: currencySchema,
   amount,
   assetId: text,
   sourceId: text,
@@ -109,6 +111,7 @@ export const operationSchema = operationInputSchema.safeExtend({
 });
 export type Operation = z.infer<typeof operationSchema>;
 export type BookData = {
+  gameCurrencies?: GameCurrency[];
   cards?: Card[];
   expenses: Expense[];
   assets: Asset[];
@@ -272,7 +275,11 @@ export function statementRows(
       href: `/records/${o.id}`,
       carried: false,
     }));
-  return [...entries, ...slips]
+  const topups = book.operations.filter(o => o.kind === "transfer").flatMap(o => o.rows
+    .filter(r => r.cardId && book.cards?.find(c => c.id === r.cardId)?.name === input.card && r.date <= input.end)
+    .map(r => ({ id: `transfer:${o.id}/${r.id}`, title: `${o.title} · ${r.name || "카드 충전"}`, date: r.date,
+      amount: toMinor(r.amount, "KRW"), href: `/records/${o.id}`, carried: r.date < input.start })));
+  return [...entries, ...slips, ...topups]
     .filter((r) => !claimed.has(r.id))
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
@@ -320,7 +327,7 @@ export function operationPostings(
     if (op.kind === "toll-payment") add(op.assetId, op.amount, -1);
     if (op.kind === "transfer")
       op.rows.forEach((r, i) => {
-        add(
+        if (!r.cardId) add(
           r.fromId,
           r.amount,
           -1,
@@ -470,16 +477,17 @@ export function validateOperations(book: BookData, verifyingId?: string) {
     if (op.kind === "transfer") {
       if (!op.rows.length) fail("자산 이동 단계를 추가해 주세요.");
       for (const row of op.rows) {
-        const from = asset(row.fromId),
-          to = asset(row.toId);
-        if (from.id === to.id) fail("출발·도착 자산을 다르게 선택해 주세요.");
-        money(row.amount, from.currency);
+        const from = row.cardId ? null : asset(row.fromId), to = asset(row.toId);
+        if (row.cardId && (row.fromId || !book.cards?.some(c => c.id === row.cardId))) fail("충전할 신용카드를 다시 선택해 주세요.");
+        if (from?.id === to.id) fail("출발·도착 자산을 다르게 선택해 주세요.");
+        const sourceCurrency = from?.currency ?? "KRW";
+        money(row.amount, sourceCurrency);
         money(row.received, to.currency);
         if (row.baseAmount !== "" || row.baseReceived !== "") {
           if (
-            money(row.baseAmount, from.currency) -
-              money(row.discount, from.currency) !==
-            money(row.amount, from.currency)
+            money(row.baseAmount, sourceCurrency) -
+              money(row.discount, sourceCurrency) !==
+            money(row.amount, sourceCurrency)
           )
             fail("기준 교환 금액 − 할인은 실제 출금액과 같아야 해요.");
           if (

@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { TimeInput } from "./time-input";
 import { bookDate } from "@/lib/date";
 import { useEffect, useRef, useState } from "react";
@@ -10,17 +11,19 @@ import { DemoNotice } from "@/components/ledger-state";
 import { Field, FormSection } from "@/components/form-fields";
 import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { changeExpenseDate, followsPaymentDate, categories, currencies, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
+import { changeExpenseDate, followsPaymentDate, categories, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
 import { useCards } from "@/lib/use-cards";
 import Link from "next/link";
 import { useAssets } from "@/lib/use-assets";
-import { type Asset } from "@/lib/asset";
+import { valueInWon, type Asset } from "@/lib/asset";
 import { ExpenseConnections } from "./expense-connections";
 import { TopupEditor } from "./topup-editor";
 import { operationsKey } from "@/lib/use-operations";
 import { ledgerKey, saveExpense } from "@/lib/use-expenses";
 
 export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { date: string; existing?: Expense; initialAsset?: Asset; initialDraft?: ExpenseInput }) {
+  const currencyDefinitions = useCurrencies();
+  const currencies = currencyDefinitions.options;
   const { mutate } = useSWRConfig();
   const router = useRouter();
   const assets = useAssets();
@@ -33,7 +36,14 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   const submitting = useRef(false);
   const requestId = useRef(existing?.id ?? "");
   const errorRef = useRef<HTMLDivElement>(null);
-  function change(next: ExpenseInput) { setValue(next); setDirty(true); setError(""); }
+  function change(next: ExpenseInput) {
+    const definition = currencyDefinitions.data?.find(c => c.code === next.currency);
+    if (definition && (next.currency !== value.currency || next.paidAmount !== value.paidAmount)) {
+      const amount = toMinor(next.paidAmount, next.currency);
+      const won = amount === null ? null : valueInWon(amount, next.currency, definition.fixedRate);
+      next = { ...next, krwAmount: won === null ? null : String(won), valuationRate: definition.fixedRate, valuationSource: "재화 고정 환율" };
+    }
+    setValue(next); setDirty(true); setError(""); }
   function field<K extends keyof ExpenseInput>(key: K, next: ExpenseInput[K]) { change((key === "paymentDate" || key === "useDate") && typeof next === "string" ? changeExpenseDate(value, key, next) : { ...value, [key]: next }); }
   useEffect(() => {
     if (!dirty) return;
@@ -98,7 +108,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
             </div>
             {value.useKind === "period" ? <div className="mt-5"><Field label="월간 소비 반영"><select className="form-control" value={value.allocation} onChange={(e) => field("allocation", e.target.value as ExpenseInput["allocation"])}><option value="start">시작월에 전액</option><option value="annual">연간 결제 · 12개월 배분</option></select></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">기간형은 일일 소비에 더하지 않고 월간 정기지출에 반영해요. 연간 배분의 원 단위 나머지는 첫 달에 더해요.</p></div> : null}
           </FormSection>
-          {!card && assets.data ? <TopupEditor value={value} change={change} assets={assets.data} /> : null}
+          {!card && assets.data ? <TopupEditor value={value} change={change} assets={assets.data} cards={cards.data ?? []} /> : null}
           <FormSection number="04" title="내가 부담한 금액">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.shared} onChange={(e) => change({ ...value, shared: e.target.checked, ownAmount: e.target.checked ? value.ownAmount ?? (value.paidAmount || "0") : null })} />다른 사람과 비용을 나눴어요</label>
             {value.shared ? <div className="mt-4"><Field label="본인 부담액" hint="결제 전체액은 유지하고 내 몫만 소비로 반영해요."><input className="form-control" inputMode="decimal" value={value.ownAmount ?? ""} onChange={(e) => field("ownAmount", e.target.value)} /></Field></div> : null}

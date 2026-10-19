@@ -6,7 +6,7 @@ import { neon } from "@neondatabase/serverless";
 import { createNeonRepository } from "../src/lib/neon-repository";
 import { newAsset } from "../src/lib/asset";
 import { newExpense } from "../src/lib/expense";
-import { newOperation } from "../src/lib/operations";
+import { newOperation, newRow, statementRows } from "../src/lib/operations";
 
 async function main() {
 const testEnv = parseEnv(readFileSync(".env.neon-test.local", "utf8"));
@@ -58,6 +58,16 @@ try {
   await a.saveCard({ name: "Renamed integration card", issuer: "Test issuer" }, cardId, 1);
   assert.equal((await b.listCards())[0].name, "Renamed integration card");
   await assert.rejects(a.saveCard({ name: "Stale card", issuer: "" }, cardId, 1), { status: 409 });
+  await a.saveGameCurrency({ code: "Integration gems", fixedRate: "2.5" }, null);
+  assert.equal((await b.listGameCurrencies())[0].fixedRate, "2.5");
+  assert.deepEqual(await outsider.listGameCurrencies(), []);
+  const gameAssetId = randomUUID(), topupId = randomUUID();
+  await a.saveAsset({ ...newAsset(date), name: "Game wallet", kind: "stored", currency: "Integration gems", openingBalance: "0" }, gameAssetId, null);
+  assert.equal((await b.listAssets()).find(asset => asset.id === gameAssetId)?.valuationRate, "2.5");
+  await a.saveOperation({ ...newOperation("transfer", date), rows: [{ ...newRow(date, "card-topup"), cardId, toId: gameAssetId, amount: "9000", received: "4000" }] }, topupId, null);
+  const book = { expenses: await b.list(), assets: await b.listAssets(), operations: await b.listOperations(), cards: await b.listCards() };
+  assert.equal(statementRows({ ...newOperation("statement", date), card: "Renamed integration card" }, book).find(row => row.id === `transfer:${topupId}/card-topup`)?.amount, 9000);
+  console.log("PASS: custom game currency isolation, shared fixed rate and card-funded top-up persistence.");
   console.log("PASS: card registration and isolation, Neon persistence, concurrent first writes, atomic top-up, idempotency, owner isolation, revision conflict, validation rollback, operation persistence.");
 } catch (error) {
   console.error("DB integration test failed:", error instanceof Error ? error.message.replace(/postgres(?:ql)?:\/\/\S+/g, "[redacted]") : "unknown");

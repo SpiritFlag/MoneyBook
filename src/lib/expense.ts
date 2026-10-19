@@ -1,15 +1,8 @@
 import { z } from "zod";
 import { bookDate, bookTimeOrder, parseDateQuery } from "./date";
 
-export const currencies = {
-  KRW: { label: "원 · KRW", unit: "원", digits: 0 },
-  USD: { label: "미국 달러 · USD", unit: "USD", digits: 2 },
-  EUR: { label: "유로 · EUR", unit: "EUR", digits: 2 },
-  JPY: { label: "일본 엔 · JPY", unit: "JPY", digits: 0 },
-  MCASH: { label: "M캐시", unit: "M캐시", digits: 0 },
-  RC: { label: "로얄 크리스탈", unit: "RC", digits: 0 },
-} as const;
-export type Currency = keyof typeof currencies;
+import { currencyInfo, currencySchema, type Currency } from "./currency";
+export { currencies, currencyInfo, type Currency } from "./currency";
 export const categories = {
   food: { label: "식비", image: "/characters/expense_food.png" },
   transport: { label: "교통", image: "/characters/expense_transport.png" },
@@ -40,7 +33,7 @@ export type Category = keyof typeof categories;
 // 금액은 문자열로 저장하고 계산할 때만 최소 단위 정수로 바꿉니다.
 // USD 0.10 + 0.20 같은 계산에서 부동소수점 오차를 피합니다.
 export function toMinor(value: string, currency: Currency): number | null {
-  const digits = currencies[currency].digits;
+  const digits = currencyInfo(currency).digits;
   if (!/^\d+(?:\.\d+)?$/.test(value)) return null;
   const [whole, fraction = ""] = value.split(".");
   if (fraction.length > digits) return null;
@@ -48,10 +41,10 @@ export function toMinor(value: string, currency: Currency): number | null {
   return Number.isSafeInteger(result) && result <= 1_000_000_000_000 ? result : null;
 }
 export function fromMinor(value: number, currency: Currency): string {
-  return (value / 10 ** currencies[currency].digits).toFixed(currencies[currency].digits);
+  return (value / 10 ** currencyInfo(currency).digits).toFixed(currencyInfo(currency).digits);
 }
 export function formatMinor(value: number, currency: Currency): string {
-  return `${((value === 0 ? 0 : value) / 10 ** currencies[currency].digits).toLocaleString("ko-KR", { maximumFractionDigits: currencies[currency].digits })}${currency === "KRW" ? "원" : ` ${currencies[currency].unit}`}`;
+  return `${((value === 0 ? 0 : value) / 10 ** currencyInfo(currency).digits).toLocaleString("ko-KR", { maximumFractionDigits: currencyInfo(currency).digits })}${currency === "KRW" ? "원" : ` ${currencyInfo(currency).unit}`}`;
 }
 export function formatMoney(value: string, currency: Currency): string {
   const amount = toMinor(value, currency);
@@ -64,11 +57,11 @@ const namedAmount = z.object({ id: z.string().min(1).max(80), name: z.string().t
 const baseExpenseSchema = z.object({
   title: z.string().trim().min(1, "거래명을 입력해 주세요.").max(120),
   category: z.enum(Object.keys(categories) as [Category, ...Category[]]),
-  currency: z.enum(["KRW", "USD", "EUR", "JPY", "MCASH", "RC"]),
+  currency: currencySchema,
   paidAmount: moneySchema,
   paymentMethod: z.string().trim().min(1, "결제수단을 입력해 주세요.").max(80),
   assetId: z.string().min(1).max(80).nullable().default(null),
-  topup: z.object({ fromId: z.string().max(80), amount: moneySchema, received: moneySchema, sameTime: z.boolean(), date: dateSchema, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), rate: z.string().max(20) }).nullable().default(null),
+  topup: z.object({ fromId: z.string().max(80), cardId: z.string().max(120).optional(), amount: moneySchema, received: moneySchema, sameTime: z.boolean(), date: dateSchema, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), rate: z.string().max(20) }).nullable().default(null),
   paymentKind: z.enum(["card", "account", "cash", "stored"]),
   paymentDate: dateSchema,
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시각을 확인해 주세요.").nullable(),
@@ -86,7 +79,7 @@ const baseExpenseSchema = z.object({
   shared: z.boolean(),
   ownAmount: moneySchema.nullable(),
   krwAmount: moneySchema.nullable(),
-  receiptCurrency: z.enum(["KRW", "USD", "EUR", "JPY", "MCASH", "RC"]),
+  receiptCurrency: currencySchema,
   receiptTotal: moneySchema.nullable(),
   items: z.array(z.object({
     id: z.string().min(1).max(80), name: z.string().trim().min(1, "상품명을 입력해 주세요.").max(120),
@@ -98,7 +91,7 @@ const baseExpenseSchema = z.object({
 export type ExpenseInput = z.infer<typeof baseExpenseSchema>;
 export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => {
   function check(amount: string | null, currency: Currency, path: (string | number)[]) {
-    if (amount !== null && toMinor(amount, currency) === null) ctx.addIssue({ code: "custom", message: `${currencies[currency].unit} 금액의 소수 자릿수 또는 범위를 확인해 주세요.`, path });
+    if (amount !== null && toMinor(amount, currency) === null) ctx.addIssue({ code: "custom", message: `${currencyInfo(currency).unit} 금액의 소수 자릿수 또는 범위를 확인해 주세요.`, path });
   }
   check(value.paidAmount, value.currency, ["paidAmount"]);
   check(value.ownAmount, value.currency, ["ownAmount"]);

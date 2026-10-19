@@ -1,3 +1,6 @@
+import { isCustomCurrency, gameCurrencySchema, gameCurrencyInputSchema } from "./currency";
+import { toMinor } from "./expense";
+import { valueInWon } from "./asset";
 import { cardInputSchema, cardSchema, type CardInput } from "./card";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -11,7 +14,7 @@ import { seedExpenses } from "./seed-expenses";
 export class RepositoryError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "RepositoryError"; }
 }
-export const storedSchema = z.object({ version: z.literal(1), cards: z.array(cardSchema).default([]), expenses: z.array(expenseSchema), assets: z.array(assetSchema).default([]), operations: z.array(operationSchema).default([]) });
+export const storedSchema = z.object({ version: z.literal(1), gameCurrencies: z.array(gameCurrencySchema).default([]), cards: z.array(cardSchema).default([]), expenses: z.array(expenseSchema), assets: z.array(assetSchema).default([]), operations: z.array(operationSchema).default([]) });
 export type Book = z.infer<typeof storedSchema>;
 export type PersistBook = (book: Book) => Promise<void>;
 export interface BookStorage {
@@ -25,7 +28,7 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
   async function read(): Promise<Book> {
     try { return storedSchema.parse(JSON.parse(await readFile(file, "utf8"))); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, cards: [], expenses: structuredClone(initialExpenses), assets: [], operations: [] };
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, gameCurrencies: [], cards: [], expenses: structuredClone(initialExpenses), assets: [], operations: [] };
       throw new RepositoryError("체험 장부를 읽지 못했어요. 기존 파일은 보존했어요. 서버 로그를 확인해 주세요.", 500);
     }
   }
@@ -54,6 +57,13 @@ export function createBookRepository(storage: BookStorage) {
   function save(input: ExpenseInput, id: string, expectedRevision: number | null): Promise<Expense[]> {
     return enqueue(async (book, persist) => {
       input = expenseInputSchema.parse(input);
+      for (const code of [input.currency, input.receiptCurrency]) if (isCustomCurrency(code) && !book.gameCurrencies.some(c => c.code === code)) throw new RepositoryError("먼저 게임 재화를 등록해 주세요.", 400);
+      const definition = book.gameCurrencies.find(c => c.code === input.currency);
+      if (definition && input.krwAmount === null) {
+        const won = valueInWon(toMinor(input.paidAmount, input.currency)!, input.currency, definition.fixedRate);
+        if (won === null) throw new RepositoryError("원화 평가액 범위를 확인해 주세요.", 400);
+        input = { ...input, krwAmount: String(won), valuationRate: definition.fixedRate, valuationSource: "manual" };
+      }
       if (input.assetId) {
         const asset = book.assets.find((a) => a.id === input.assetId);
         if (!asset) throw new RepositoryError("선택한 자산을 찾을 수 없어요.", 400);
@@ -76,7 +86,7 @@ export function createBookRepository(storage: BookStorage) {
         const t = input.topup;
         const date = t.sameTime ? input.paymentDate : t.date;
         const previous = book.operations[linked];
-        const transfer: Operation = { ...newOperation("transfer", date), title: `${input.title} · 연결 충전`, parentId: id, time: t.sameTime ? input.time : t.time, rows: [{ ...newRow(date, "topup"), fromId: t.fromId, toId: input.assetId, amount: t.amount, received: t.received, rate: t.rate, time: t.sameTime ? input.time : t.time }], id: previous?.id ?? randomUUID(), revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
+        const transfer: Operation = { ...newOperation("transfer", date), title: `${input.title} · 연결 충전`, parentId: id, time: t.sameTime ? input.time : t.time, rows: [{ ...newRow(date, "topup"), fromId: t.fromId, cardId: t.cardId, toId: input.assetId, amount: t.amount, received: t.received, rate: t.rate, time: t.sameTime ? input.time : t.time }], id: previous?.id ?? randomUUID(), revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
         if (previous) book.operations[linked] = transfer; else book.operations.push(transfer);
       } else if (linked >= 0) {
         book.operations[linked] = { ...book.operations[linked], parentId: "", revision: book.operations[linked].revision + 1, updatedAt: now };
@@ -90,6 +100,9 @@ export function createBookRepository(storage: BookStorage) {
   function saveAsset(input: AssetInput, id: string, revision: number | null): Promise<Asset[]> {
     return enqueue(async (book, persist) => {
       input = assetInputSchema.parse(input);
+      const definition = book.gameCurrencies.find(c => c.code === input.currency);
+      if (isCustomCurrency(input.currency) && !definition) throw new RepositoryError("먼저 게임 재화를 등록해 주세요.", 400);
+      if (definition) input = { ...input, valuationRate: definition.fixedRate };
       const index = book.assets.findIndex((a) => a.id === id);
       if (revision !== null && index < 0) throw new RepositoryError("수정할 자산을 찾을 수 없어요.", 404);
       const previous = book.assets[index];
@@ -159,7 +172,22 @@ export function createBookRepository(storage: BookStorage) {
       return book.cards;
     });
   }
-  return { listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, save, saveAsset, saveOperation };
+  async function saveGameCurrency(input: z.infer<typeof gameCurrencyInputSchema>, revision: number | null) {
+    return enqueue(async (book, persist) => {
+      const value = gameCurrencyInputSchema.parse(input);
+      const previous = book.gameCurrencies.find(c => c.code === value.code);
+      if (previous && revision === null && previous.fixedRate === value.fixedRate) return book.gameCurrencies;
+      if ((previous?.revision ?? null) !== revision) throw new RepositoryError("재화 정의가 바뀌었어요. 최신 내용을 다시 열어 주세요.", 409);
+      const record = { ...value, revision: (previous?.revision ?? 0) + 1 };
+      book.gameCurrencies = [...book.gameCurrencies.filter(c => c.code !== value.code), record];
+      for (const asset of book.assets) if (asset.currency === value.code) {
+        asset.valuationRate = value.fixedRate; asset.revision += 1; asset.updatedAt = new Date().toISOString();
+      }
+      await write(book, persist);
+      return book.gameCurrencies;
+    });
+  }
+  return { listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, save, saveAsset, saveOperation };
 }
 
 // HMR 때 검증·저장 함수는 새로 만들고 쓰기 큐만 공유합니다.

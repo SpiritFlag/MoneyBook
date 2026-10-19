@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -27,7 +28,7 @@ import {
   type Operation,
   type BookData,
 } from "@/lib/operations";
-import { currencies, expenseInputSchema, type Currency } from "@/lib/expense";
+import { expenseInputSchema, type Currency } from "@/lib/expense";
 import { saveOperation, operationsKey } from "@/lib/use-operations";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
@@ -45,6 +46,8 @@ export function OperationForm({
   source?: string;
 }) {
   const { mutate } = useSWRConfig();
+  const currencyDefinitions = useCurrencies();
+  const currencies = currencyDefinitions.options;
   const router = useRouter();
   const [value, setValue] = useState<OperationInput>(() => {
     if (existing) return structuredClone(existing);

@@ -1,11 +1,14 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/form-fields";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { currencies, formatMinor, toMinor, type Currency, type ExpenseInput } from "@/lib/expense";
+import { formatMinor, toMinor, type Currency, type ExpenseInput } from "@/lib/expense";
 
 export function ReceiptEditor({ value, onChange }: { value: ExpenseInput; onChange: (value: ExpenseInput) => void }) {
+  const currencyDefinitions = useCurrencies();
+  const currencies = currencyDefinitions.options;
   function updateItem(index: number, patch: Partial<ExpenseInput["items"][number]>) {
     onChange({ ...value, items: value.items.map((item, i) => i === index ? { ...item, ...patch } : item) });
   }

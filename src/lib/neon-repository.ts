@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { createBookRepository, storedSchema, RepositoryError, type Book, type BookStorage, type PersistBook } from "./expense-repository";
 
 type Snapshot = { revision: number; book: Book };
-const emptyBook = (): Book => ({ version: 1, cards: [], expenses: [], assets: [], operations: [] });
+const emptyBook = (): Book => ({ version: 1, gameCurrencies: [], cards: [], expenses: [], assets: [], operations: [] });
 class WriteConflict extends Error {}
 
 // 같은 서버에 동시에 도착한 조회만 합칩니다. 완료된 데이터는 서버에 캐시하지 않습니다.

@@ -2,7 +2,7 @@
 import { TimeInput } from "./time-input";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
-import { currencies, formatMinor } from "@/lib/expense";
+import { currencyInfo, formatMinor } from "@/lib/expense";
 import { rateUnits, valueInWon } from "@/lib/asset";
 import {
   newRow,
@@ -157,20 +157,30 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                 />
               </Field>
               <div />
-              <AssetSelect
+              <Field label={`충전 결제 방식 ${index + 1}`}>
+                <select className="form-control" value={row.cardId !== undefined ? "card" : "asset"} onChange={e => patch({ fromId: "", cardId: e.target.value === "card" ? "" : undefined })}>
+                  <option value="asset">자산에서 출금</option><option value="card">신용카드 승인</option>
+                </select>
+              </Field>
+              <div />
+              {row.cardId !== undefined ? <Field label={`충전 신용카드 ${index + 1}`} hint="충전은 소비로 집계하지 않고 카드 명세서에 승인으로 표시해요. 실제 납부할 때 계좌에서 출금돼요.">
+                <select className="form-control" required value={row.cardId} onChange={e => patch({ cardId: e.target.value, fromId: "" })}>
+                  <option value="">카드 선택</option>{book.cards?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field> : <AssetSelect
                 label={`출발 자산 ${index + 1}`}
                 value={row.fromId}
                 onChange={(fromId) => patch({ fromId })}
                 book={book}
-              />
+              />}
               <AssetSelect
                 label={`도착 자산 ${index + 1}`}
                 value={row.toId}
-                onChange={(toId) => patch({ toId })}
+                onChange={(toId) => patch({ toId, rate: book.gameCurrencies?.find(c => c.code === book.assets.find(a => a.id === toId)?.currency)?.fixedRate ?? "" })}
                 book={book}
               />
               <MoneyField
-                label={`실제 출금액 ${index + 1} · ${from?.currency ?? "출발 단위"}`}
+                label={row.cardId !== undefined ? `카드 승인액 ${index + 1} · KRW` : `실제 출금액 ${index + 1} · ${from?.currency ?? "출발 단위"}`}
                 value={row.amount}
                 onChange={(amount) => patch({ amount })}
               />
@@ -224,7 +234,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                   type="button"
                   variant="secondary"
                   disabled={
-                    from?.currency !== "KRW" || !(Number(row.baseReceived) > 0)
+                    (!row.cardId && from?.currency !== "KRW") || !(Number(row.baseReceived) > 0)
                   }
                   onClick={() =>
                     patch({
@@ -470,7 +480,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
                 </select>
               </Field>
               <MoneyField
-                label={`귀속액 ${index + 1} · ${currencies[value.currency].unit}`}
+                label={`귀속액 ${index + 1} · ${currencyInfo(value.currency).unit}`}
                 value={allocation.amount}
                 onChange={(amount) => patch({ amount })}
               />

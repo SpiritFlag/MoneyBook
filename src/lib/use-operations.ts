@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "./use-currencies";
 import { useCards } from "./use-cards";
 import useSWR from "swr";
 import { useAssets } from "./use-assets";
@@ -20,22 +21,25 @@ export function useOperations() {
   });
 }
 export function useBook() {
+  const currencies = useCurrencies();
   const cards = useCards();
   const assets = useAssets(),
     expenses = useExpenses(),
     operations = useOperations();
   return {
     data:
-      cards.data && assets.data && expenses.data && operations.data
+      currencies.data && cards.data && assets.data && expenses.data && operations.data
         ? {
+            gameCurrencies: currencies.data,
             cards: cards.data,
             assets: assets.data,
             expenses: expenses.data,
             operations: operations.data,
           }
         : undefined,
-    error: cards.error ?? assets.error ?? expenses.error ?? operations.error,
+    error: currencies.error ?? cards.error ?? assets.error ?? expenses.error ?? operations.error,
     retry: () => {
+      void currencies.mutate();
       void cards.mutate();
       void assets.mutate();
       void expenses.mutate();

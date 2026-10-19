@@ -103,7 +103,7 @@ export function FinanceBook({
           ))}
         </div>
       </header>
-      {section === "cards" ? <section className="book-sheet mb-6 rounded-3xl bg-card p-5 sm:p-7"><h2 className="text-lg font-semibold">내 신용카드 <span className="ml-2 text-sm font-normal text-muted-foreground">{book.cards?.length ?? 0}장</span></h2>{book.cards?.length ? <ul className="mt-5 grid gap-4 sm:grid-cols-2">{book.cards.map(card => <li key={card.id} className="rounded-2xl bg-secondary/40 p-5"><p className="text-xs text-muted-foreground">{card.issuer || "신용카드"}</p><div className="mt-2 flex items-start justify-between gap-3"><h3 className="text-lg font-semibold">{card.name}</h3><Link className="shrink-0 rounded-full bg-card px-3 py-1 text-sm font-medium text-primary hover:bg-secondary" href={`/cards/${card.id}/edit`} aria-label={`${card.name} 수정`}>수정</Link></div><p className="mt-2 text-xs text-muted-foreground">승인 기록 {book.expenses.filter(e => e.paymentKind === "card" && e.paymentMethod === card.name).length}건</p><Link className="mt-4 inline-block text-sm font-medium text-primary hover:underline" href={`/transactions/new?card=${card.id}`}>이 카드로 지출 기록 →</Link></li>)}</ul> : <div className="py-8 text-center"><p className="text-muted-foreground">아직 등록한 신용카드가 없어요.</p><Link href="/cards/new" className="mt-3 inline-block text-sm font-medium text-primary">첫 신용카드 추가 →</Link></div>}<p className="mt-4 text-xs leading-6 text-muted-foreground">신용카드는 이곳에서 관리해요. 예금·현금·충전 잔액은 자산 현황에서 관리해요.</p></section> : null}
+      {section === "cards" ? <section className="book-sheet mb-6 rounded-3xl bg-card p-5 sm:p-7"><h2 className="text-lg font-semibold">내 신용카드 <span className="ml-2 text-sm font-normal text-muted-foreground">{book.cards?.length ?? 0}장</span></h2>{book.cards?.length ? <ul className="mt-5 grid gap-4 sm:grid-cols-2">{book.cards.map(card => <li key={card.id} className="rounded-2xl bg-secondary/40 p-5"><p className="text-xs text-muted-foreground">{card.issuer || "신용카드"}</p><div className="mt-2 flex items-start justify-between gap-3"><h3 className="text-lg font-semibold">{card.name}</h3><Link className="shrink-0 rounded-full bg-card px-3 py-1 text-sm font-medium text-primary hover:bg-secondary" href={`/cards/${card.id}/edit`} aria-label={`${card.name} 수정`}>수정</Link></div><p className="mt-2 text-xs text-muted-foreground">승인 기록 {book.expenses.filter(e => e.paymentKind === "card" && e.paymentMethod === card.name).length + book.operations.filter(o => o.kind === "transfer").flatMap(o => o.rows).filter(r => r.cardId === card.id).length}건</p><Link className="mt-4 inline-block text-sm font-medium text-primary hover:underline" href={`/transactions/new?card=${card.id}`}>이 카드로 지출 기록 →</Link></li>)}</ul> : <div className="py-8 text-center"><p className="text-muted-foreground">아직 등록한 신용카드가 없어요.</p><Link href="/cards/new" className="mt-3 inline-block text-sm font-medium text-primary">첫 신용카드 추가 →</Link></div>}<p className="mt-4 text-xs leading-6 text-muted-foreground">신용카드는 이곳에서 관리해요. 예금·현금·충전 잔액은 자산 현황에서 관리해요.</p></section> : null}
       {section === "settlements" ? (
         <section className="mb-6 rounded-3xl bg-secondary/40 p-6">
           <h2 className="font-semibold">아직 받을 분담금</h2>
@@ -368,9 +368,9 @@ export function RecordPage({
                     {op.kind === "transfer" ? (
                       <>
                         <p className="mt-3 text-sm">
-                          {book.assets.find((a) => a.id === r.fromId)?.name}{" "}
+                          {r.cardId ? `${book.cards?.find(c => c.id === r.cardId)?.name} 승인` : book.assets.find((a) => a.id === r.fromId)?.name}{" "}
                           {r.amount}{" "}
-                          {book.assets.find((a) => a.id === r.fromId)?.currency}{" "}
+                          {r.cardId ? "KRW" : book.assets.find((a) => a.id === r.fromId)?.currency}{" "}
                           → {book.assets.find((a) => a.id === r.toId)?.name}{" "}
                           {r.received}{" "}
                           {book.assets.find((a) => a.id === r.toId)?.currency}
