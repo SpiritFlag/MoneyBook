@@ -9,8 +9,8 @@ async function fetchCards(url: string): Promise<Card[]> {
   return body;
 }
 export function useCards() { return useSWR<Card[]>(cardsKey, fetchCards, { dedupingInterval: 30000, focusThrottleInterval: 30000, errorRetryCount: 2 }); }
-export async function saveCard(id: string, card: CardInput): Promise<Card[]> {
-  const response = await fetch(cardsKey, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, card }) });
+export async function saveCard(id: string, card: CardInput, revision?: number): Promise<Card[]> {
+  const response = await fetch(cardsKey, { method: revision ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, card, revision }) });
   const body = await response.json();
   if (!response.ok) throw new Error(body.message ?? "카드를 등록하지 못했어요.");
   return body;

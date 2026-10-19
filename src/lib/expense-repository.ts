@@ -127,16 +127,34 @@ export function createBookRepository(storage: BookStorage) {
       return book.operations;
     });
   }
-  async function saveCard(input: CardInput, id: string) {
+  async function saveCard(input: CardInput, id: string, revision: number | null = null) {
     return enqueue(async (book, persist) => {
       const value = cardInputSchema.parse(input);
       const existing = book.cards.find(c => c.id === id);
-      if (existing) {
+      if (revision !== null && !existing) throw new RepositoryError("수정할 카드를 찾을 수 없어요.", 404);
+      if (existing && revision === null) {
         if (existing.name === value.name && existing.issuer === value.issuer) return book.cards;
         throw new RepositoryError("이미 등록한 카드예요. 목록을 확인해 주세요.", 409);
       }
-      if (book.cards.some(c => c.name.toLocaleLowerCase() === value.name.toLocaleLowerCase())) throw new RepositoryError("같은 이름의 카드가 있어요. 구분할 이름을 입력해 주세요.", 409);
-      book.cards.push({ ...value, id, createdAt: new Date().toISOString() });
+      if (book.cards.some(c => c.id !== id && c.name.toLocaleLowerCase() === value.name.toLocaleLowerCase())) throw new RepositoryError("같은 이름의 카드가 있어요. 구분할 이름을 입력해 주세요.", 409);
+      const now = new Date().toISOString();
+      if (existing) {
+        if (existing.revision !== revision) throw new RepositoryError("다른 화면에서 카드가 수정됐어요. 최신 카드를 다시 열어 주세요.", 409);
+        if (existing.name !== value.name) {
+          // 이름으로 연결된 이전 기록을 한 번의 장부 저장으로 함께 변경합니다.
+          if (book.expenses.some(e => e.paymentKind === "card" && e.paymentMethod === value.name) || book.operations.some(o => o.card === value.name || (o.template?.paymentKind === "card" && o.template.paymentMethod === value.name))) throw new RepositoryError("바꾸려는 이름으로 기록된 다른 카드 거래가 있어요. 다른 이름을 사용해 주세요.", 409);
+          for (const expense of book.expenses) if (expense.paymentKind === "card" && expense.paymentMethod === existing.name) {
+            expense.paymentMethod = value.name; expense.revision++; expense.updatedAt = now;
+          }
+          for (const operation of book.operations) {
+            let changed = false;
+            if (operation.card === existing.name) { operation.card = value.name; changed = true; }
+            if (operation.template?.paymentKind === "card" && operation.template.paymentMethod === existing.name) { operation.template.paymentMethod = value.name; changed = true; }
+            if (changed) { operation.revision++; operation.updatedAt = now; }
+          }
+        }
+        Object.assign(existing, value, { revision: existing.revision + 1 });
+      } else book.cards.push({ ...value, id, revision: 1, createdAt: now });
       await write(book, persist);
       return book.cards;
     });

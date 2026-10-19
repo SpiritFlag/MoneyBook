@@ -55,6 +55,9 @@ try {
   await a.saveOperation(income, randomUUID(), null);
   assert.equal((await createNeonRepository(owner, connection).listOperations()).length, 2);
   assert.equal((await createNeonRepository(owner, connection).listCards())[0].id, cardId, "Other saves must preserve registered cards");
+  await a.saveCard({ name: "Renamed integration card", issuer: "Test issuer" }, cardId, 1);
+  assert.equal((await b.listCards())[0].name, "Renamed integration card");
+  await assert.rejects(a.saveCard({ name: "Stale card", issuer: "" }, cardId, 1), { status: 409 });
   console.log("PASS: card registration and isolation, Neon persistence, concurrent first writes, atomic top-up, idempotency, owner isolation, revision conflict, validation rollback, operation persistence.");
 } catch (error) {
   console.error("DB integration test failed:", error instanceof Error ? error.message.replace(/postgres(?:ql)?:\/\/\S+/g, "[redacted]") : "unknown");

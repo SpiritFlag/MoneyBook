@@ -39,6 +39,15 @@
   background: #ffffff;
   box-shadow: 0 4px 18px -12px #63755255;
 }
+.transaction-link.transaction-payment-only {
+  background: #eee6f3;
+  box-shadow: inset 3px 0 #b69ac9;
+}
+.transaction-link.transaction-payment-only:hover,
+.transaction-link.transaction-payment-only:focus-visible {
+  background: #f5eff9;
+  box-shadow: inset 3px 0 #a383b9, 0 4px 18px -12px #70528b55;
+}
 [data-slot="button"] {
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }

@@ -3,7 +3,8 @@ import test from "node:test";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expenseInputSchema, expenseSchema, toMinor, receiptSummary, ownKrw, daySummary, monthAmount, appearsOnDay, dailyExpenses, dayTime } from "./expense";
+import { existsSync } from "node:fs";
+import { categories, expenseInputSchema, expenseSchema, toMinor, receiptSummary, ownKrw, daySummary, monthAmount, appearsOnDay, dailyExpenses, dayTime } from "./expense";
 import { seedExpenses } from "./seed-expenses";
 import { createExpenseRepository } from "./expense-repository";
 
@@ -96,4 +97,12 @@ test("이용 시각으로 정렬하고 미확인은 마지막, 결제일만 일�
   assert.deepEqual(dailyExpenses(input, "2026-10-19"), []);
   const tied = [{ ...base, id: "b", useTime: "09:00" }, { ...base, id: "a", useTime: "09:00" }];
   assert.deepEqual(dailyExpenses(tied, "2026-10-18").map((e) => e.id), ["a", "b"]);
+});
+
+test("기존 지출 카테고리 23종의 아이콘과 저장 스키마를 모두 지원한다", () => {
+  assert.equal(Object.keys(categories).length, 23);
+  for (const [category, config] of Object.entries(categories)) {
+    assert.equal(expenseInputSchema.safeParse({ ...seedExpenses[0], category }).success, true, category);
+    assert.ok(existsSync(path.join(process.cwd(), "public", config.image)), category);
+  }
 });

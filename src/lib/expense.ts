@@ -19,6 +19,20 @@ export const categories = {
   medical: { label: "의료", image: "/characters/expense_medical.png" },
   hobby: { label: "취미", image: "/characters/expense_hobby.png" },
   game: { label: "게임", image: "/characters/expense_game.png" },
+  fashion: { label: "패션", image: "/characters/expense_fashion.png" },
+  beauty: { label: "미용", image: "/characters/expense_beauty.png" },
+  service: { label: "서비스", image: "/characters/expense_service.png" },
+  donation: { label: "기부", image: "/characters/expense_donation.png" },
+  dues: { label: "회비", image: "/characters/expense_dues.png" },
+  fitness: { label: "운동", image: "/characters/expense_fitness.png" },
+  gift: { label: "선물", image: "/characters/expense_gift.png" },
+  insurance: { label: "보험", image: "/characters/expense_insurance.png" },
+  membership: { label: "구독", image: "/characters/expense_membership.png" },
+  tax: { label: "세금", image: "/characters/expense_tax.png" },
+  telecom: { label: "통신", image: "/characters/expense_telecom.png" },
+  vehicle: { label: "차량", image: "/characters/expense_vehicle.png" },
+  secret: { label: "비밀", image: "/characters/expense_secret.png" },
+  study: { label: "공부", image: "/characters/expense_study.png" },
   other: { label: "기타", image: "/characters/expense_other.png" },
 } as const;
 export type Category = keyof typeof categories;
@@ -49,7 +63,7 @@ const moneySchema = z.string().max(18).regex(/^\d+(?:\.\d+)?$/, "금액을 숫�
 const namedAmount = z.object({ id: z.string().min(1).max(80), name: z.string().trim().min(1, "할인·가산 이름을 입력해 주세요.").max(100), amount: moneySchema });
 const baseExpenseSchema = z.object({
   title: z.string().trim().min(1, "거래명을 입력해 주세요.").max(120),
-  category: z.enum(["food", "transport", "goods", "housing", "digital", "medical", "hobby", "game", "other"]),
+  category: z.enum(Object.keys(categories) as [Category, ...Category[]]),
   currency: z.enum(["KRW", "USD", "EUR", "JPY", "MCASH", "RC"]),
   paidAmount: moneySchema,
   paymentMethod: z.string().trim().min(1, "결제수단을 입력해 주세요.").max(80),
