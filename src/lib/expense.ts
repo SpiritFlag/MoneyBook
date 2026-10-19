@@ -74,6 +74,7 @@ const baseExpenseSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시각을 확인해 주세요.").nullable(),
   useKind: z.enum(["once", "period"]),
   useDate: dateSchema,
+  useDateFollowsPayment: z.boolean().optional(),
   sortOrder: z.number().finite().default(0),
   orderReference: z.string().max(80).nullable().default(null),
   orderSide: z.enum(["before", "after"]).default("after"),
@@ -125,7 +126,7 @@ export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => 
 export type Expense = ExpenseInput & { id: string; revision: number; createdAt: string; updatedAt: string };
 export const expenseSchema = expenseInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
 export function newExpense(date: string): ExpenseInput {
-  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", assetId: null, topup: null, paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useTime: null, sortOrder: 0, orderReference: null, orderSide: "after", valuationRate: null, valuationSource: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
+  return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", assetId: null, topup: null, paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useDateFollowsPayment: true, useTime: null, sortOrder: 0, orderReference: null, orderSide: "after", valuationRate: null, valuationSource: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
 }
 export function receiptSummary(value: ExpenseInput) {
   const currency = value.receiptCurrency;
@@ -191,4 +192,13 @@ export function monthAmount(value: ExpenseInput, month: string): number | null |
   if (offset < 0 || offset > 11) return undefined;
   const amount = ownKrw(value);
   return amount === null ? null : Math.floor(amount / 12) + (offset === 0 ? amount % 12 : 0);
+}
+
+export function followsPaymentDate(value: ExpenseInput): boolean {
+  return value.useDateFollowsPayment ?? value.useDate === value.paymentDate;
+}
+export function changeExpenseDate(value: ExpenseInput, field: "paymentDate" | "useDate", date: string): ExpenseInput {
+  if (field === "useDate") return { ...value, useDate: date, useDateFollowsPayment: false };
+  const follows = followsPaymentDate(value);
+  return { ...value, paymentDate: date, useDate: follows ? date : value.useDate, useDateFollowsPayment: follows };
 }

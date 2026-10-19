@@ -16,6 +16,6 @@ export function ExpenseCreate({ date, assetId, templateId, cardId }: { date: str
   const template = book.operations.find((o) => o.id === templateId && o.kind === "template")?.template;
   if (templateId && !template) return <p>저장한 거래를 찾을 수 없어요.</p>;
   const days = template?.useEnd ? Math.round((Date.parse(template.useEnd) - Date.parse(template.useDate)) / 86400000) : 0;
-  const draft = template ? { ...template, paymentDate: date, useDate: date, useEnd: template.useEnd ? shiftDate(date, days) : null, time: null, useTime: null, topup: null, sortOrder: 0, orderReference: null } : card ? { ...newExpense(date), paymentMethod: card.name } : undefined;
+  const draft = template ? { ...template, paymentDate: date, useDate: date, useDateFollowsPayment: true, useEnd: template.useEnd ? shiftDate(date, days) : null, time: null, useTime: null, topup: null, sortOrder: 0, orderReference: null } : card ? { ...newExpense(date), paymentMethod: card.name } : undefined;
   return <ExpenseForm key={templateId ?? assetId ?? cardId ?? "new"} date={date} initialAsset={asset} initialDraft={draft} />;
 }

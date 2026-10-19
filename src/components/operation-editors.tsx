@@ -1,4 +1,5 @@
 "use client";
+import { TimeInput } from "./time-input";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
 import { currencies, formatMinor } from "@/lib/expense";
@@ -104,12 +105,7 @@ export function DateTimeFields({
         />
       </Field>
       <Field label="시각 (선택)">
-        <input
-          type="time"
-          className="form-control"
-          value={time ?? ""}
-          onChange={(e) => onTime(e.target.value || null)}
-        />
+        <TimeInput value={time} onChange={onTime} />
       </Field>
     </>
   );
@@ -153,7 +149,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={`단계 ${index + 1} 이름`}>
-                <input
+                <input lang="ko" inputMode="text"
                   className="form-control"
                   value={row.name}
                   onChange={(e) => patch({ name: e.target.value })}
@@ -325,7 +321,7 @@ export function JourneyEditor({ value, change, book }: EditorProps) {
                   transit ? `정류장·역 ${index + 1}` : `기관명 ${index + 1}`
                 }
               >
-                <input
+                <input lang="ko" inputMode="text"
                   className="form-control"
                   value={row.name}
                   onChange={(e) => patch({ name: e.target.value })}
@@ -347,19 +343,14 @@ export function JourneyEditor({ value, change, book }: EditorProps) {
                     </select>
                   </Field>
                   <Field label="노선·구간">
-                    <input
+                    <input lang="ko" inputMode="text"
                       className="form-control"
                       value={row.route}
                       onChange={(e) => patch({ route: e.target.value })}
                     />
                   </Field>
                   <Field label="승하차 시각 (선택)">
-                    <input
-                      type="time"
-                      className="form-control"
-                      value={row.time ?? ""}
-                      onChange={(e) => patch({ time: e.target.value || null })}
-                    />
+                    <TimeInput value={row.time} onChange={time => patch({ time })} />
                   </Field>
                 </>
               ) : null}

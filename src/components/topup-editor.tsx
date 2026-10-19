@@ -1,4 +1,5 @@
 "use client";
+import { TimeInput } from "./time-input";
 import { Field, FormSection } from "./form-fields";
 import { Button } from "./ui/button";
 import { valueInWon, type Asset } from "@/lib/asset";
@@ -123,12 +124,7 @@ export function TopupEditor({
                 />
               </Field>
               <Field label="충전 시각 (선택)">
-                <input
-                  className="form-control"
-                  type="time"
-                  value={t.time ?? ""}
-                  onChange={(e) => patch({ time: e.target.value || null })}
-                />
+                <TimeInput value={t.time} onChange={time => patch({ time })} />
               </Field>
             </div>
           ) : null}

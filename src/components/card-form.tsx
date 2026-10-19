@@ -29,8 +29,8 @@ export function CardForm({ existing }: { existing?: Card }) {
       catch (cause) { setError(cause instanceof Error ? cause.message : "카드를 등록하지 못했어요."); }
       finally { submitting.current = false; setBusy(false); }
     }}><fieldset disabled={busy} className="space-y-6"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary"><CreditCard aria-hidden="true" /></div>
-    <Field label="카드 이름" hint={existing ? "이름을 바꾸면 연결된 승인·명세서·자주 쓰는 거래에도 함께 반영돼요." : "같은 카드사의 여러 카드는 별명으로 구분해 주세요. 기존 거래와 같은 이름으로 등록하면 함께 조회돼요."}><input autoFocus required maxLength={80} className="form-control" placeholder="예: 생활비 카드" value={name} onChange={e => { setName(e.target.value); setDirty(true); }} /></Field>
-    <Field label="카드사 (선택)"><input maxLength={80} className="form-control" placeholder="예: 신한카드" value={issuer} onChange={e => { setIssuer(e.target.value); setDirty(true); }} /></Field>
+    <Field label="카드 이름" hint={existing ? "이름을 바꾸면 연결된 승인·명세서·자주 쓰는 거래에도 함께 반영돼요." : "같은 카드사의 여러 카드는 별명으로 구분해 주세요. 기존 거래와 같은 이름으로 등록하면 함께 조회돼요."}><input lang="ko" inputMode="text" autoFocus required maxLength={80} className="form-control" placeholder="예: 생활비 카드" value={name} onChange={e => { setName(e.target.value); setDirty(true); }} /></Field>
+    <Field label="카드사 (선택)"><input lang="ko" inputMode="text" maxLength={80} className="form-control" placeholder="예: 신한카드" value={issuer} onChange={e => { setIssuer(e.target.value); setDirty(true); }} /></Field>
     <p className="rounded-xl bg-background/70 p-4 text-xs leading-6 text-muted-foreground">카드번호·CVC는 입력하지 않아요. 카드 승인은 예금 잔액을 바로 줄이지 않고, 명세서의 실제 납부를 연결할 때 출금돼요.</p>
     {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}<Button type="submit">{busy ? "저장 중…" : existing ? "수정 저장" : "신용카드 등록"}</Button></fieldset></form></>;
 }

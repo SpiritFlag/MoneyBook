@@ -135,7 +135,7 @@ export function OperationForm({
         <fieldset disabled={busy} className="space-y-6">
           <section className="book-sheet space-y-5 rounded-3xl bg-card p-5 sm:p-8">
             <Field label="기록 이름">
-              <input
+              <input lang="ko" inputMode="text"
                 className="form-control"
                 value={value.title}
                 maxLength={120}
@@ -311,7 +311,7 @@ export function OperationForm({
               </Field>
             ) : null}
             <Field label="메모">
-              <textarea
+              <textarea lang="ko" inputMode="text"
                 className="form-control min-h-24"
                 maxLength={2000}
                 value={value.memo}

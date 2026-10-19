@@ -40,7 +40,7 @@ export function AssetForm({ date, existing, linked = false }: { date: string; ex
       <fieldset disabled={busy} className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
         <div className="min-w-0 space-y-5">
           <FormSection number="01" title="자산의 이름과 단위">
-            <Field label="자산 이름"><input autoFocus className="form-control" maxLength={80} placeholder="예: 생활비 계좌, 달러 지갑" value={value.name} onChange={(e) => field("name", e.target.value)} /></Field>
+            <Field label="자산 이름"><input lang="ko" inputMode="text" autoFocus className="form-control" maxLength={80} placeholder="예: 생활비 계좌, 달러 지갑" value={value.name} onChange={(e) => field("name", e.target.value)} /></Field>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label="자산 종류"><select className="form-control" disabled={linked} value={value.kind} onChange={(e) => field("kind", e.target.value as AssetInput["kind"])}>{Object.entries(assetKinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
               <Field label="자산 통화·재화"><select className="form-control" disabled={linked} value={value.currency} onChange={(e) => { field("currency", e.target.value as Currency); field("valuationRate", null); }}>{Object.entries(currencies).map(([key, info]) => <option key={key} value={key}>{info.label}</option>)}</select></Field>
@@ -54,7 +54,7 @@ export function AssetForm({ date, existing, linked = false }: { date: string; ex
           <FormSection number="03" title="현재 원화 평가" description="현재 보유량의 가치에만 적용해요. 지출에 확정한 원화 금액은 바꾸지 않아요.">
             {value.currency === "KRW" ? <p className="rounded-xl bg-secondary/50 p-4 text-sm text-primary">원화 자산은 1원 = 1원으로 평가해요.</p> : <div className="grid gap-4 sm:grid-cols-2"><Field label={`평가 환율 · 1 ${currencies[value.currency].unit}당 원`} hint="예: 1 USD = 1,400원이면 1400. 미확정이면 비워 두세요."><input className="form-control" inputMode="decimal" placeholder="직접 입력" value={value.valuationRate ?? ""} onChange={(e) => field("valuationRate", e.target.value === "" ? null : e.target.value)} /></Field><Field label="환율 기준일"><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.rateDate} onChange={(e) => field("rateDate", e.target.value)} /></Field></div>}
           </FormSection>
-          <FormSection number="04" title="메모"><Field label="자산 메모 (선택)"><textarea className="form-control min-h-24" maxLength={1000} value={value.memo} onChange={(e) => field("memo", e.target.value)} placeholder="자산을 구분하는 데 필요한 내용을 남겨보세요." /></Field></FormSection>
+          <FormSection number="04" title="메모"><Field label="자산 메모 (선택)"><textarea lang="ko" inputMode="text" className="form-control min-h-24" maxLength={1000} value={value.memo} onChange={(e) => field("memo", e.target.value)} placeholder="자산을 구분하는 데 필요한 내용을 남겨보세요." /></Field></FormSection>
         </div>
         <aside className="xl:sticky xl:top-7 xl:self-start"><div className="daily-summary rounded-3xl p-6"><p className="text-xs text-muted-foreground">시작할 기준잔액</p><p className="mt-3 break-words text-2xl font-bold text-primary">{opening === null ? "잔액 미확인" : formatMinor(opening, value.currency)}</p><p className="mt-4 text-sm">{won === null ? "원화 평가 미확정" : `기준잔액 평가 ${formatMinor(won, "KRW")}`}</p><p className="mt-4 text-xs leading-6 text-muted-foreground">잔액을 모르면 기준일 이후의 순변동만 보여줘요. 신용카드 승인과 자동 연동되는 은행 잔액은 별도로 다뤄요.</p></div>
           {error ? <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-destructive">{error}</p> : null}
