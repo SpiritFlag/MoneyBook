@@ -94,3 +94,38 @@
 .form-control::placeholder { color: #929789; }
 .amount-input { font-size: 1.6rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 .demo-badge { border-radius: 999px; background: #eee6d5; padding: 0.4rem 0.75rem; font-size: 0.75rem; color: #776442; }
+
+/* 거래 상세는 한 장의 따뜻한 영수증처럼 이어 읽습니다. */
+.expense-detail { background: #fffef8; }
+.expense-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .95fr); align-items: center; gap: 1rem; padding: 2.5rem 2.25rem 1.5rem; }
+.expense-category { display: inline-block; border-radius: 999px; background: var(--primary); color: white; padding: .6rem 1.25rem; font-size: .875rem; font-weight: 600; }
+.expense-title { margin-top: 1.5rem; font-size: clamp(1.6rem, 3.2vw, 2.25rem); font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.expense-total { margin-top: 2rem; font-size: clamp(2rem, 4.5vw, 3.5rem); font-weight: 450; letter-spacing: -.04em; line-height: 1.2; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.expense-character { width: 100%; height: auto; max-height: 360px; object-fit: contain; }
+.expense-body { padding: 1.75rem 2.25rem 2.5rem; display: grid; gap: 2.5rem; }
+.receipt-timeline { position: relative; margin: 0; padding: 0; list-style: none; }
+.receipt-timeline::before { content: ""; position: absolute; left: 5px; top: .7rem; bottom: .7rem; width: 1px; background: #d0dfc9; }
+.receipt-root { position: relative; padding: 0 0 1.75rem 2.25rem; }
+.receipt-root:last-child { padding-bottom: 0; }
+.receipt-root::before { content: ""; position: absolute; left: 0; top: .4rem; width: 11px; height: 11px; border-radius: 50%; background: #769b6c; box-shadow: 0 0 0 5px #fffef8; }
+.receipt-line { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; line-height: 1.7; }
+.receipt-amount { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.receipt-branches { margin: 1rem 0 0 .5rem; padding: 0; list-style: none; color: #5d7b54; }
+.receipt-branches > li { position: relative; padding: .2rem 0 .2rem 1.35rem; border-left: 1px solid #cbdcc3; }
+.receipt-branches > li::before { content: ""; position: absolute; width: .8rem; height: 1px; left: 0; top: 1rem; background: #cbdcc3; }
+.receipt-discount { color: #5d7b54; }
+.expense-payment { border: 1px solid var(--border); border-radius: 1.5rem; padding: 1.5rem; }
+@media (min-width: 1024px) {
+  .expense-hero { padding: 3rem 3rem 1.5rem; }
+  .expense-body { padding: 2rem 3rem 3rem; }
+}
+@media (max-width: 480px) {
+  .expense-hero { gap: .5rem; padding: 1.75rem 1.25rem 1rem; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); }
+  .expense-category { padding: .45rem .9rem; font-size: .75rem; }
+  .expense-title { margin-top: 1.1rem; }
+  .expense-total { margin-top: 1.5rem; font-size: clamp(1.6rem, 7vw, 2.25rem); }
+  .expense-body { padding: 1.5rem 1.25rem 2rem; gap: 2rem; }
+  .receipt-root { padding-left: 1.5rem; }
+  .receipt-line { gap: .6rem; font-size: .875rem; }
+  .expense-payment { padding: 1.1rem; }
+}

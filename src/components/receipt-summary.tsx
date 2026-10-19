@@ -1,9 +1,10 @@
 import { Check, CircleHelp, TriangleAlert } from "lucide-react";
 import { formatMinor, receiptSummary, type ExpenseInput } from "@/lib/expense";
 
-export function ReceiptSummary({ expense }: { expense: ExpenseInput }) {
+export function ReceiptSummary({ expense, compact = false }: { expense: ExpenseInput; compact?: boolean }) {
   const result = receiptSummary(expense);
   const matched = result.status === "matched";
+  if (compact && matched) return <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-primary/20 pt-4 text-xs text-muted-foreground" aria-live="polite"><span className="inline-flex items-center gap-2"><Check size={14} className="text-primary" />명세 합계 · 총액과 일치해요</span><span className="tabular-nums">{formatMinor(result.sum, expense.receiptCurrency)}</span></div>;
   return <div className={`rounded-2xl px-4 py-4 text-sm ${matched ? "bg-secondary/60 text-primary" : result.status === "over" ? "bg-amber-50 text-amber-900" : "bg-[#f7f5ed] text-muted-foreground"}`} aria-live="polite">
     <div className="flex items-center justify-between gap-3"><span>확인한 명세 합계</span><strong className="tabular-nums">{formatMinor(result.sum, expense.receiptCurrency)}</strong></div>
     <p className="mt-3 flex items-center gap-2 font-medium">{matched ? <Check size={16} /> : result.status === "over" ? <TriangleAlert size={16} /> : <CircleHelp size={16} />}
