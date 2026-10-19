@@ -10,7 +10,6 @@ import { dailyExpenses, daySummary, formatMinor } from "@/lib/expense";
 import { useBook } from "@/lib/use-operations";
 import { consumptionRecords, operationExpenses, operationLabels } from "@/lib/operations";
 import { dailyIncomes } from "@/lib/daily-records";
-import { useState } from "react";
 import { DemoNotice, LedgerState } from "./ledger-state";
 
 export function DailyBook({ initialDate }: { initialDate: string }) {
@@ -23,9 +22,8 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
     window.history.replaceState(null, "", `/?${query.toString()}`);
   }
   const { data: book, error, retry } = useBook();
-  const [showTransfers, setShowTransfers] = useState(false);
   const data = book ? [...book.expenses, ...operationExpenses(book.operations)] : undefined;
-  const events = (book?.operations ?? []).filter((o) => o.kind !== "income" && o.kind !== "template" && o.kind !== "transit" && o.kind !== "toll" && (o.kind === "transfer" ? showTransfers && o.rows.some((r) => bookDate(r.date, r.time) === date) : o.kind === "statement" ? o.payment && bookDate(o.payment.date, o.payment.time) === date : bookDate(o.date, o.time) === date));
+  const events = (book?.operations ?? []).filter((o) => o.kind !== "income" && o.kind !== "template" && o.kind !== "transit" && o.kind !== "toll" && (o.kind === "transfer" ? o.rows.some((r) => bookDate(r.date, r.time) === date) : o.kind === "statement" ? o.payment && bookDate(o.payment.date, o.payment.time) === date : bookDate(o.date, o.time) === date));
   const transactions = dailyExpenses(data ?? [], date);
   const { total, pending } = daySummary(book ? consumptionRecords(book.expenses, book.operations) : [], date);
 
@@ -44,7 +42,7 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
       {pending > 0 ? <p className="px-8 pb-3 text-sm text-amber-800">원화 미확정 {pending}건은 합계에서 분리했어요.</p> : null}
       <p className="mx-5 mb-5 rounded-xl bg-[#f7f5ed] px-4 py-3 text-xs leading-relaxed text-muted-foreground sm:mx-7">하루 소비는 본인 부담액 기준이에요. 함께 낸 거래는 전체 결제액을 따로 표시해요.</p>
     </section>
-    <section className="mt-6 rounded-3xl bg-card p-5 sm:p-7"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-semibold">입출금·정산 흐름</h2><label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={showTransfers} onChange={(e) => setShowTransfers(e.target.checked)} />자산 이동도 보기</label></div>{events.length ? <ul className="mt-4 space-y-2">{events.map((o) => <li key={o.id}><Link href={`/records/${o.id}`} className="transaction-link flex flex-wrap justify-between gap-2 rounded-xl bg-background/60 p-4 text-sm"><span>{o.title}</span><span className="text-primary">{operationLabels[o.kind]} →</span></Link></li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">이날의 별도 금융 흐름이 없어요.</p>}</section>
+    {events.length > 0 ? <section className="mt-6 rounded-3xl bg-card p-5 sm:p-7"><h2 className="font-semibold">입출금·정산 흐름</h2><ul className="mt-4 space-y-2">{events.map((o) => <li key={o.id}><Link href={`/records/${o.id}`} className="transaction-link flex flex-wrap justify-between gap-2 rounded-xl bg-background/60 p-4 text-sm"><span>{o.title}</span><span className="text-primary">{operationLabels[o.kind]} →</span></Link></li>)}</ul></section> : null}
     <aside className="mt-5 flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
       <DemoNotice />
     </aside>
