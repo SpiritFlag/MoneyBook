@@ -2,7 +2,7 @@ import { z } from "zod";
 import { currencyInfo, toMinor, orderAroundReferences, type Currency, type Expense } from "./expense";
 import { parseDateQuery } from "./date";
 
-export const assetKinds = { account: "계좌", cash: "현금", stored: "충전 잔액·재화" } as const;
+export const assetKinds = { account: "계좌", cash: "현금", stored: "충전 잔액·재화", receivable: "미수금" } as const;
 import { currencySchema } from "./currency";
 export function signedMinor(value: string, currency: Currency): number | null {
   const negative = value.startsWith("-");
@@ -27,7 +27,7 @@ export function valueInWon(amount: number, currency: Currency, rate: string | nu
 }
 export const assetInputSchema = z.object({
   name: z.string().trim().min(1, "자산 이름을 입력해 주세요.").max(80),
-  kind: z.enum(["account", "cash", "stored"]),
+  kind: z.enum(["account", "cash", "stored", "receivable"]),
   currency: currencySchema,
   openingDate: z.string().refine((v) => parseDateQuery(v) !== null, "기준일을 확인해 주세요."),
   openingBalance: z.string().max(19).nullable(),

@@ -51,6 +51,7 @@ export function AssetForm({ date, existing, linked = false }: { date: string; ex
               <Field label="자산 통화·재화"><select className="form-control" disabled={linked} value={value.currency} onChange={(e) => { field("currency", e.target.value as Currency); field("valuationRate", null); }}>{Object.entries(currencies).map(([key, info]) => <option key={key} value={key}>{info.label}</option>)}</select></Field>
             </div>
             <Link className="mt-3 inline-block text-sm text-primary" href="/assets">게임 재화·고정 환율 정의하기 →</Link>
+            {value.kind === "receivable" ? <p className="mt-3 text-sm leading-6 text-muted-foreground">돌려받을 돈을 관리해요. 빌려줄 때는 계좌 → 미수금, 돌려받을 때는 미수금 → 계좌로 자산 이동을 기록하세요.</p> : null}
             {linked ? <p className="mt-3 text-xs text-muted-foreground">거래가 연결되어 있어 종류와 단위는 유지해요.</p> : null}
           </FormSection>
           <FormSection number="02" title="어디서부터 기록할까요?" description="기준일 시작 시점의 잔액이에요. 기준일 당일을 포함해 이후 결제 내역을 더하고 빼요.">

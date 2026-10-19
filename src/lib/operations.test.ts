@@ -219,6 +219,37 @@ test("이동 경로는 통화별 실제 수량을 기록하고 소비·일반 �
     /최종 수령량/,
   );
 });
+test("미수금은 저장 후 대여·일부 회수를 자산 이동으로 반영하고 소비를 만들지 않는다", async () => {
+  const folder = await mkdtemp(path.join(tmpdir(), "moneybook-receivable-test-"));
+  const file = path.join(folder, "ledger.json");
+  try {
+    const repo = createExpenseRepository(file);
+    await repo.saveAsset(asset(), "bank", null);
+    await repo.saveAsset({ ...asset("loan", "receivable"), openingBalance: "0" }, "loan", null);
+    const lend = op("transfer", { rows: [{ ...newRow(date, "lend"), fromId: "bank", toId: "loan", amount: "30000", received: "30000" }] });
+    await repo.saveOperation(lend, "lend", null);
+    const repay = op("transfer", { rows: [{ ...newRow(date, "repay"), fromId: "loan", toId: "bank", amount: "10000", received: "10000" }] });
+    await repo.saveOperation(repay, "repay", null);
+    const reopened = createExpenseRepository(file);
+    const assets = await reopened.listAssets();
+    const operations = await reopened.listOperations();
+    const postings = operationPostings(operations, assets);
+    const loan = assets.find(a => a.id === "loan")!;
+    assert.equal(loan.kind, "receivable");
+    assert.equal(assetPosition(loan, [], date, postings).balance, 20000);
+    assert.equal(assetPosition(assets.find(a => a.id === "bank")!, [], date, postings).balance, 80000);
+    assert.equal(consumptionRecords([], operations).length, 0);
+    assert.deepEqual(assetLedger(loan, [], postings).map(row => row.amount).sort((a, b) => a - b), [-10000, 30000]);
+    await reopened.save({ ...newExpense(date), title: "미수금으로 상계한 소비", paidAmount: "5000", paymentKind: "receivable", assetId: "loan", paymentMethod: loan.name }, "offset", null);
+    assert.equal(assetPosition(loan, await reopened.list(), date, postings).balance, 15000);
+  } finally {
+    const resolved = path.resolve(folder);
+    assert.equal(path.dirname(resolved), path.resolve(tmpdir()));
+    assert.ok(path.basename(resolved).startsWith("moneybook-receivable-test-"));
+    await rm(resolved, { recursive: true, force: true });
+  }
+});
+
 test("교통의 0원 환승은 원장에 남고 하이패스는 기관별 실제 출금만 차감한다", () => {
   const transit = op("transit", {
     assetId: "stored",

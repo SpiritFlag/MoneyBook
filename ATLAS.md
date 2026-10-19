@@ -31,7 +31,7 @@
 | /api/expenses, /api/assets, /api/operations | 각 데이터의 인증된 GET·POST·PUT. Zod 검증과 수정 충돌 검사. |
 
 - lib/expense.ts: 지출 스키마, 최소 단위 금액, 영수증 검산, 날짜별 소비, 수동 표시 순서.
-- lib/asset.ts: 자산 스키마, 환율 평가, 공통 입출금으로 잔액·전후 원장 계산.
+- lib/asset.ts: 계좌·현금·충전 잔액·재화·미수금 자산 스키마, 환율 평가, 공통 입출금으로 잔액·전후 원장 계산. 개인 간 대여·회수는 계좌↔미수금 자산 이동으로 기록하고 소비·수입으로 중복 집계하지 않는다.
 - lib/operations.ts: 금융 기록 스키마, 연결 정합성 검증, 입출금과 소비 파생 계산. 화면에서 직접 잔액을 수정하지 않는다.
 - lib/expense-repository.ts: 자산·지출·금융 기록의 공통 검증 및 저장 인터페이스. lib/neon-repository.ts가 DB 저장을 담당하고 로컬 파일 어댑터는 기존 기록 보존·회귀 테스트용으로 남아 있다.
 - expense-form / receipt-editor / topup-editor / expense-connections: 결제·명세·충전·정렬·평가 기준 입력.
