@@ -4,7 +4,7 @@
 
 ## 현재 구현
 
-**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 로컬 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자·대출은 보류했다. 공통 Clerk 로그인과 계정별 Neon 영속 저장을 연결했다. Vercel 배포는 아직 하지 않았다.
+**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 로컬 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자·대출은 보류했다. 공통 Clerk 로그인과 계정별 Neon 영속 저장을 연결했다. 기존 Vercel 프로젝트의 운영 도메인에 배포했다.
 
 - 공개 저장소는 git@github.com:SpiritFlag/MoneyBook.git. 레거시 Git 이력·실거래·비공개 환경 설정을 가져오지 않았다.
 - Next.js 16.4.2 / React 19.3.1 / TypeScript 6.0.3 / Tailwind CSS 4.3.3 / shadcn Button·Radix Slot / SWR / Zod를 사용한다.
@@ -84,8 +84,10 @@ npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 �
 - Neon: sparkling-pond-46696613, DB neondb. 실제 연결은 사용자가 지정한 .env.local의 DATABASE_URL을 사용한다. production 브랜치에 migrations/001_books.sql을 적용했다. 기존 레거시 데이터나 비공개 설정을 가져오지 않았다.
 - moneybook-integration 브랜치(br-lucky-dawn-aosyj1r1)는 마이그레이션·DB 통합 및 브라우저 테스트용으로 만들었고 재검증용으로 유지한다. 기본 자동 일시정지 정책을 사용한다. 실제 앱은 이 브랜치가 아닌 .env.local로 실행한다.
 - npm run db:migrate는 버전 관리된 SQL을 하나의 트랜잭션으로 적용한다. 기본 .env.local, 검증용은 MONEYBOOK_ENV_FILE=.env.neon-test.local을 사용한다. 재실행은 기존 행을 변경하지 않는다. 스키마 자동 생성은 요청 처리 중 실행하지 않는다.
-- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY / DATABASE_URL은 환경변수로만 관리한다. 로컬에는 Development Clerk 키를 사용한다. npm run check:connections는 비밀값 없이 연결을 점검한다. Vercel에는 해당 환경의 Clerk 키·DATABASE_URL을 별도로 설정해야 한다.
-- Vercel은 기존 moneybook 프로젝트 재사용 방향이다. 현재 커넥터는 해당 팀 조회 권한 403으로 원격 설정 확인이 안 됐다. 배포와 공개 서비스 이용 대상 확정은 남아 있다.
+- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY / DATABASE_URL은 환경변수로만 관리한다. 로컬에는 Development Clerk 키를 사용한다. npm run check:connections는 비밀값 없이 연결을 점검한다. Vercel Production은 기존 운영 Clerk 키와 실제 Neon DB, Preview는 개발 Clerk 키와 검증 브랜치 DB로 분리했다. 로컬 Development 계정과 Production 계정은 Clerk 인스턴스가 다르므로 같은 이메일이어도 장부가 자동 공유되지 않는다.
+- Vercel: SpiritFlag Universe / moneybook (prj_31JYtXFBJUWXne0xZCLI1LNeCXdY). CLI 기존 로그인으로 접근해 Vite 설정을 Next.js로 전환했다. 운영 주소는 https://moneybook.spiritflag.work 이다. vercel.json은 npm ci / npm run build와 함수 리전 sin1을 지정한다. .vercelignore에서 환경변수·로컬 장부·백업을 업로드에서 제외한다.
+- Git 연동은 예전 저장소 ID 대신 새 공개 SpiritFlag/MoneyBook(repoId 1424147442)에 연결했다. 운영 배포 dpl_3iZCYi3YQDNHRmZ5P87zFouanM14는 719cddc 소스로 빌드하고 검증 후 promote했다. 기존 배포 dpl_9XygaUePTDvjLBY1CRRMiXccBtgR는 롤백 참고로 남는다.
+- 배포 검증: 운영 홈 200, 비인증 장부 API 3종 401/private no-store, 실제 브라우저의 기존 유니버스 로그인 세션과 빈 장부 조회 성공. 공개 서비스 이용 대상의 추가 정책은 미확정이며 현재는 Clerk 로그인 계정별 격리다.
 - 자동 은행 동기화·환율 조회, 종합 대시보드·투자·대출, 부분 취소·복잡한 재정산 등 보류한 기능은 구현 완료로 취급하지 않는다.
 
 사용자는 반복 논의를 줄이고 연결된 결과를 먼저 보고 싶어 한다. 합의된 범위는 묶어서 구현·검증한다. 중요한 제품 방향·운영환경 변경은 별도 합의한다.
