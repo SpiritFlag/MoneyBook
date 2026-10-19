@@ -1,11 +1,14 @@
-import { bookDate } from "@/lib/date";
 import { dailyRecords } from "@/lib/daily-records";
 import { type Asset } from "@/lib/asset";
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { incomeCategories, netConsumption, cancelled, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
-import { categories, dayTime, formatMoney, formatMinor, ownMinor, type Expense } from "@/lib/expense";
+import { categories, dailyExpensePresentation, formatMoney, formatMinor, ownMinor, type Expense } from "@/lib/expense";
+
+function stamp(date: string, time: string | null) {
+  return `${date.replaceAll("-", ".")}${time ? ` ${time}` : ""}`;
+}
 
 export function TransactionList({ transactions, date, operations = [], assets = [] }: { transactions: readonly Expense[]; date: string; operations?: readonly Operation[]; assets?: readonly Asset[] }) {
   const rows = dailyRecords(transactions, operations, date);
@@ -27,17 +30,17 @@ export function TransactionList({ transactions, date, operations = [], assets = 
       const category = categories[transaction.category];
       const shared = transaction.shared;
       const won = netConsumption(transaction, operations);
-      const paymentOnly = transaction.useKind === "period" || bookDate(transaction.useDate, transaction.useTime) !== date;
+      const display = dailyExpensePresentation(transaction, date);
       return <li key={transaction.id} className="px-2 sm:px-3">
-        <Link href={`${expenseHref(transaction.id)}?from=${date}`} aria-label={`${transaction.title} 상세 보기`} className={`transaction-link ${paymentOnly ? "transaction-payment-only" : ""} group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4`}>
+        <Link href={`${expenseHref(transaction.id)}?from=${date}`} aria-label={`${transaction.title} 상세 보기`} className={`transaction-link transaction-${display.kind} group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4`}>
         <div className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20">
           <Image src={category.image} alt="" width={80} height={80} className="h-16 w-16 object-contain sm:h-20 sm:w-20" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="mb-1 text-xs text-muted-foreground">{category.label}<span className="mx-2" aria-hidden="true">·</span>{transaction.useKind === "once" && bookDate(transaction.useDate, transaction.useTime) === date ? "이용 " : "결제 "}{transaction.useKind === "once" && bookDate(transaction.useDate, transaction.useTime) === date ? transaction.useDate : transaction.paymentDate} {dayTime(transaction, date) ?? (transaction.useKind === "period" ? "" : "시각 미확인")}</p>
-          <h3 className="text-sm font-semibold sm:text-base">{transaction.title}</h3>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{transaction.paymentMethod}</p>{cancelled(transaction.id, operations) ? <p className="mt-1 text-xs text-amber-800">전액 취소 · 원거래 보존</p> : insuranceRecovered(transaction.id, operations) > 0 ? <p className="mt-1 text-xs text-primary">보험금 반영 후 본인 소비</p> : null}
-          {paymentOnly ? <div className="mt-2 space-y-1 text-xs leading-5 text-[#70528b]"><p className="font-medium">{transaction.useKind === "period" ? "기간형 결제 · 이날 소비 제외" : "결제 기록 · 이날 소비 제외"}</p><p>이용 {transaction.useDate}{transaction.useKind === "period" ? ` → ${transaction.useEnd ?? "종료일 미확인"}` : transaction.useTime ? ` ${transaction.useTime}` : ""}</p>{transaction.useKind === "period" ? <p>{transaction.allocation === "annual" ? "시작월부터 12개월 배분" : "이용 시작월의 정기지출에 반영"}</p> : <p>{bookDate(transaction.useDate, transaction.useTime)} 하루 소비에 반영</p>}</div> : null}
+          <h3 className="break-words text-sm font-semibold sm:text-base">{transaction.title}</h3>
+          <p className="mt-2 text-xs leading-6 text-muted-foreground"><span className="tabular-nums">{stamp(display.date, display.time)}</span><span className="mx-2" aria-hidden="true">·</span>{transaction.paymentMethod}<span className="mx-2" aria-hidden="true">·</span>{category.label}</p>
+          {display.kind !== "normal" ? <p className="transaction-context mt-2 inline-block max-w-full rounded-lg px-3 py-2 text-xs leading-5">{display.kind === "recurring" ? `정기결제　이용 ${transaction.useDate.replaceAll("-", ".")} → ${transaction.useEnd?.replaceAll("-", ".") ?? "종료일 미확인"}` : display.kind === "usage-only" ? `결제 ${stamp(transaction.paymentDate, transaction.time)}` : `이용 ${stamp(transaction.useDate, transaction.useTime)}`}</p> : null}
+          {cancelled(transaction.id, operations) ? <p className="mt-1 text-xs text-amber-800">전액 취소</p> : insuranceRecovered(transaction.id, operations) > 0 ? <p className="mt-1 text-xs text-primary">보험금 반영</p> : null}
         </div>
         <div className="shrink-0 text-right tabular-nums">
           <p className="text-base font-semibold sm:text-lg">{cancelled(transaction.id, operations) ? formatMinor(0, transaction.currency) : insuranceRecovered(transaction.id, operations) > 0 ? formatMinor(netConsumption(transaction, operations) ?? 0, "KRW") : formatMinor(ownMinor(transaction), transaction.currency)}</p>

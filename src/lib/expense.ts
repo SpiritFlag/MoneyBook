@@ -155,6 +155,13 @@ export function appearsOnDay(value: ExpenseInput, date: string): boolean {
 export function dayTime(value: ExpenseInput, date: string): string | null {
   return value.useKind === "once" && bookDate(value.useDate, value.useTime) === date ? value.useTime ?? null : value.time;
 }
+export function dailyExpensePresentation(value: ExpenseInput, date: string) {
+  if (value.useKind === "period") return { kind: "recurring", date: value.paymentDate, time: value.time } as const;
+  const paidHere = bookDate(value.paymentDate, value.time) === date;
+  const usedHere = bookDate(value.useDate, value.useTime) === date;
+  if (usedHere && !paidHere) return { kind: "usage-only", date: value.useDate, time: value.useTime } as const;
+  return { kind: paidHere && !usedHere ? "payment-only" : "normal", date: value.paymentDate, time: value.time } as const;
+}
 export function expenseOrderReferences(values: readonly Expense[], value: ExpenseInput, id?: string) {
   if (value.useKind !== "once" || value.useTime !== null || parseDateQuery(value.useDate) === null) return [];
   const date = bookDate(value.useDate, value.useTime);

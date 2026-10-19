@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bookDate, todayInBook } from "./date";
-import { appearsOnDay, dailyExpenses, expenseOrderReferences, daySummary, monthAmount, newExpense, type Expense } from "./expense";
+import { appearsOnDay, dailyExpensePresentation, dailyExpenses, expenseOrderReferences, daySummary, monthAmount, newExpense, type Expense } from "./expense";
 import { dailyRecords } from "./daily-records";
 import { changeOperationDate, newOperation, newRow, operationSchema, operationPostings, transferOrderWarning, type Operation } from "./operations";
 import { newAsset, assetLedger, type Asset } from "./asset";
@@ -24,6 +24,20 @@ function expense(id: string, date: string, time: string | null): Expense {
 function income(id: string, date: string, time: string | null): Operation {
   return { ...newOperation("income", date), ...meta, id, title: id, amount: "2", time };
 }
+
+test("일일 거래는 기본 결제일·초록 이용 전용·파랑 결제 전용·보라 기간형으로 구분한다", () => {
+  const normal = { ...expense("normal", "2026-10-01", "11:10"), useTime: "12:00" };
+  assert.deepEqual(dailyExpensePresentation(normal, "2026-10-01"), { kind: "normal", date: "2026-10-01", time: "11:10" });
+  const deferred = { ...normal, useDate: "2026-10-02", useTime: "18:00" };
+  assert.deepEqual(dailyExpensePresentation(deferred, "2026-10-01"), { kind: "payment-only", date: "2026-10-01", time: "11:10" });
+  assert.deepEqual(dailyExpensePresentation(deferred, "2026-10-02"), { kind: "usage-only", date: "2026-10-02", time: "18:00" });
+  const recurring = { ...normal, useKind: "period" as const, useDate: "2026-09-01", useEnd: "2026-09-30", useTime: null };
+  assert.deepEqual(dailyExpensePresentation(recurring, "2026-10-01"), { kind: "recurring", date: "2026-10-01", time: "11:10" });
+  const dawn = { ...normal, paymentDate: "2026-10-02", time: "02:03", useDate: "2026-10-02", useTime: "18:00" };
+  assert.equal(dailyExpensePresentation(dawn, "2026-10-01").kind, "payment-only");
+  assert.equal(dailyExpensePresentation(dawn, "2026-10-02").kind, "usage-only");
+  assert.equal(dailyExpensePresentation({ ...normal, time: null, useTime: null }, "2026-10-01").kind, "normal");
+});
 test("한국 시간 05시와 월·연 경계, 미확인 시각을 구분한다", () => {
   assert.equal(todayInBook(new Date("2026-10-01T04:59:59+09:00")), "2026-09-30");
   assert.equal(todayInBook(new Date("2026-10-01T05:00:00+09:00")), "2026-10-01");

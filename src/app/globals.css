@@ -40,14 +40,21 @@
   box-shadow: 0 4px 18px -12px #63755255;
 }
 .transaction-link.transaction-payment-only {
-  background: #eee6f3;
-  box-shadow: inset 3px 0 #b69ac9;
+  background: #edf3f9;
+  box-shadow: inset 3px 0 #8ba5bf;
 }
 .transaction-link.transaction-payment-only:hover,
 .transaction-link.transaction-payment-only:focus-visible {
-  background: #f5eff9;
-  box-shadow: inset 3px 0 #a383b9, 0 4px 18px -12px #70528b55;
+  background: #e6eff8;
+  box-shadow: inset 3px 0 #7897b5;
 }
+.transaction-payment-only .transaction-context { background: #dfeaf5; color: #365e80; }
+.transaction-link.transaction-usage-only { background: #eff5e9; box-shadow: inset 3px 0 #8fa679; }
+.transaction-link.transaction-usage-only:hover, .transaction-link.transaction-usage-only:focus-visible { background: #e8f0e0; box-shadow: inset 3px 0 #7c9864; }
+.transaction-usage-only .transaction-context { background: #e3edd8; color: #46633b; }
+.transaction-link.transaction-recurring { background: #f3eef7; box-shadow: inset 3px 0 #b3a1c2; }
+.transaction-link.transaction-recurring:hover, .transaction-link.transaction-recurring:focus-visible { background: #ece4f3; box-shadow: inset 3px 0 #a18ab4; }
+.transaction-recurring .transaction-context { background: #e9e1f0; color: #70528b; }
 [data-slot="button"] {
   transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
