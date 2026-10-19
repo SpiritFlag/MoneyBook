@@ -1,16 +1,18 @@
 import { z } from "zod";
 import { expenseInputSchema } from "@/lib/expense";
-import { expenseRepository } from "@/lib/expense-repository";
+import { authenticatedRepository } from "@/lib/authenticated-repository";
 import { localJson, localFailure, requireLocal, readLocalBody } from "@/lib/local-api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const requestSchema = z.object({ id: z.string().uuid(), expense: expenseInputSchema });
 const updateSchema = z.object({ id: z.string().min(1).max(80), revision: z.number().int().positive(), expense: expenseInputSchema });
 export async function GET(request: Request) {
-  try { requireLocal(request); return localJson(await expenseRepository.list()); } catch (error) { return localFailure(error); }
+  try { requireLocal(request); const expenseRepository = await authenticatedRepository(); return localJson(await expenseRepository.list()); } catch (error) { return localFailure(error); }
 }
 async function mutate(request: Request, update: boolean) {
   try {
+    requireLocal(request);
+    const expenseRepository = await authenticatedRepository();
     const parsed = (update ? updateSchema : requestSchema).safeParse(await readLocalBody(request));
     if (!parsed.success) return localJson({ message: parsed.error.issues[0].message }, 400);
     const value = parsed.data;

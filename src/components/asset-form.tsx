@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { mutate } from "swr";
+import { useSWRConfig } from "swr";
 import { Button } from "./ui/button";
 import { Field, FormSection } from "./form-fields";
 import { DemoNotice } from "./ledger-state";
@@ -11,6 +11,7 @@ import { assetsKey, saveAsset } from "@/lib/use-assets";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export function AssetForm({ date, existing, linked = false }: { date: string; existing?: Asset; linked?: boolean }) {
+  const { mutate } = useSWRConfig();
   const router = useRouter();
   const [value, setValue] = useState<AssetInput>(() => existing ? { ...existing } : newAsset(date));
   const [revision] = useState(existing?.revision);

@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { mutate } from "swr";
+import { useSWRConfig } from "swr";
 import { Button } from "./ui/button";
 import { Field } from "./form-fields";
 import {
@@ -42,6 +42,7 @@ export function OperationForm({
   existing?: Operation;
   source?: string;
 }) {
+  const { mutate } = useSWRConfig();
   const router = useRouter();
   const [value, setValue] = useState<OperationInput>(() => {
     if (existing) return structuredClone(existing);

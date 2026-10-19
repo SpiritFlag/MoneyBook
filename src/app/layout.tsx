@@ -3,6 +3,8 @@ import Image from "next/image";
 import { BookNav } from "@/components/book-nav";
 import { Leaf } from "lucide-react";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
+import { AuthenticatedBook } from "@/components/authenticated-book";
 
 export const metadata: Metadata = {
   title: "머니북",
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko"><body>
+  return <html lang="ko"><body><ClerkProvider appearance={{ variables: { colorPrimary: "#537761", borderRadius: "1rem" } }}><AuthenticatedBook>
     <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-card focus:p-3">본문으로 건너뛰기</a>
     <div className="min-h-screen md:flex">
       <aside className="book-sidebar md:fixed md:inset-y-0 md:w-60 md:overflow-y-auto">
@@ -23,5 +25,5 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </aside>
       <main id="main" className="min-w-0 flex-1 px-4 py-7 md:ml-60 md:px-10 md:py-12 lg:px-14"><div className="mx-auto max-w-5xl">{children}</div></main>
     </div>
-  </body></html>;
+  </AuthenticatedBook></ClerkProvider></body></html>;
 }

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Save } from "lucide-react";
-import { mutate } from "swr";
+import { useSWRConfig } from "swr";
 import { Button } from "@/components/ui/button";
 import { DemoNotice } from "@/components/ledger-state";
 import { Field, FormSection } from "@/components/form-fields";
@@ -17,6 +17,7 @@ import { operationsKey } from "@/lib/use-operations";
 import { ledgerKey, saveExpense } from "@/lib/use-expenses";
 
 export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { date: string; existing?: Expense; initialAsset?: Asset; initialDraft?: ExpenseInput }) {
+  const { mutate } = useSWRConfig();
   const router = useRouter();
   const assets = useAssets();
   const [value, setValue] = useState<ExpenseInput>(() => existing ? structuredClone(existing) : initialDraft ? structuredClone(initialDraft) : initialAsset ? { ...newExpense(date), assetId: initialAsset.id, paymentKind: initialAsset.kind, paymentMethod: initialAsset.name, currency: initialAsset.currency, receiptCurrency: initialAsset.currency } : newExpense(date));

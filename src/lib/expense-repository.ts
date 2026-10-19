@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import { expenseInputSchema, expenseSchema, type Expense, type ExpenseInput } from "./expense";
 import { assetInputSchema, assetSchema, type AssetInput, type Asset } from "./asset";
@@ -15,11 +15,11 @@ type Book = z.infer<typeof storedSchema>;
 
 // 자산과 지출을 같은 쓰기 큐·파일에서 검증하고 저장합니다.
 type WriteQueue = { writes: Promise<unknown> };
-export function createExpenseRepository(file: string, queue: WriteQueue = { writes: Promise.resolve() }) {
+export function createExpenseRepository(file: string, queue: WriteQueue = { writes: Promise.resolve() }, initialExpenses: Expense[] = seedExpenses) {
   async function read(): Promise<Book> {
     try { return storedSchema.parse(JSON.parse(await readFile(file, "utf8"))); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, expenses: structuredClone(seedExpenses), assets: [], operations: [] };
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, expenses: structuredClone(initialExpenses), assets: [], operations: [] };
       throw new RepositoryError("체험 장부를 읽지 못했어요. 기존 파일은 보존했어요. 서버 로그를 확인해 주세요.", 500);
     }
   }
@@ -119,3 +119,13 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
 const runtime = globalThis as typeof globalThis & { moneybookWriteQueue?: WriteQueue };
 const queue = runtime.moneybookWriteQueue ??= { writes: Promise.resolve() };
 export const expenseRepository = createExpenseRepository(path.join(process.cwd(), ".local", "demo-ledger-v1.json"), queue);
+
+const userRuntime = globalThis as typeof globalThis & { moneybookUserQueues?: Map<string, WriteQueue> };
+const userQueues = userRuntime.moneybookUserQueues ??= new Map<string, WriteQueue>();
+export function userExpenseRepository(userId: string, directory = path.join(process.cwd(), ".local", "users")) {
+  if (!userId) throw new RepositoryError("로그인이 필요해요.", 401);
+  const file = path.join(directory, `${createHash("sha256").update(userId).digest("hex")}.json`);
+  let userQueue = userQueues.get(file);
+  if (!userQueue) { userQueue = { writes: Promise.resolve() }; userQueues.set(file, userQueue); }
+  return createExpenseRepository(file, userQueue, []);
+}

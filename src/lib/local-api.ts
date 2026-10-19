@@ -14,7 +14,7 @@ export function requireLocal(request: Request) {
 }
 export function localFailure(error: unknown) {
   if (error instanceof RepositoryError) return localJson({ message: error.message }, error.status);
-  if (error instanceof Error && error.name === "RepositoryError" && "status" in error && typeof error.status === "number" && [400, 403, 404, 409, 413, 415, 500].includes(error.status)) return localJson({ message: error.message }, error.status);
+  if (error instanceof Error && error.name === "RepositoryError" && "status" in error && typeof error.status === "number" && [400, 401, 403, 404, 409, 413, 415, 500].includes(error.status)) return localJson({ message: error.message }, error.status);
   console.error("체험 장부 요청 실패", error instanceof Error ? error.message : "알 수 없는 오류");
   return localJson({ message: "장부를 처리하지 못했어요. 입력을 유지했으니 잠시 후 다시 시도해 주세요." }, 500);
 }

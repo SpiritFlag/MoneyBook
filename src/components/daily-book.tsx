@@ -46,7 +46,6 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
     <section className="mt-6 rounded-3xl bg-card p-5 sm:p-7"><div className="flex flex-wrap justify-between gap-3"><h2 className="font-semibold">입출금·정산 흐름</h2><label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={showTransfers} onChange={(e) => setShowTransfers(e.target.checked)} />자산 이동도 보기</label></div>{events.length ? <ul className="mt-4 space-y-2">{events.map((o) => <li key={o.id}><Link href={`/records/${o.id}`} className="transaction-link flex flex-wrap justify-between gap-2 rounded-xl bg-background/60 p-4 text-sm"><span>{o.title}</span><span className="text-primary">{operationLabels[o.kind]} →</span></Link></li>)}</ul> : <p className="mt-4 text-sm text-muted-foreground">이날의 별도 금융 흐름이 없어요.</p>}</section>
     <aside className="mt-5 flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
       <DemoNotice />
-      <Button variant="ghost" size="sm" onClick={() => setDate("2026-10-18")}>예시 날짜 보기 · 10월 18일</Button>
     </aside>
   </>;
 }
