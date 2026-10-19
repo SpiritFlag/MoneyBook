@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/lib/*.test.ts",
-    "check:connections": "node scripts/check-connections.mjs"
+    "check:connections": "node scripts/check-connections.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "test:db": "node --import tsx scripts/test-neon.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.17",

@@ -4,7 +4,7 @@
 
 ## 현재 구현
 
-**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 로컬 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자·대출은 보류했다. 공통 Clerk 로그인과 계정별 로컬 저장을 연결했다. Neon은 접속 확인까지 마쳤으며 영속 저장 전환과 Vercel 배포는 아직 하지 않았다.
+**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 로컬 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자·대출은 보류했다. 공통 Clerk 로그인과 계정별 Neon 영속 저장을 연결했다. Vercel 배포는 아직 하지 않았다.
 
 - 공개 저장소는 git@github.com:SpiritFlag/MoneyBook.git. 레거시 Git 이력·실거래·비공개 환경 설정을 가져오지 않았다.
 - Next.js 16.4.2 / React 19.3.1 / TypeScript 6.0.3 / Tailwind CSS 4.3.3 / shadcn Button·Radix Slot / SWR / Zod를 사용한다.
@@ -28,12 +28,12 @@
 | /templates | 사용자가 직접 저장한 지출 템플릿과 새 입력으로 불러오기. |
 | /records/new?kind=...&source=... | 종류에 따른 금융 기록 입력. |
 | /records/[id], /edit | 금융 기록 상세·수정, 원거래 및 자산 전후 잔액 연결. |
-| /api/expenses, /api/assets, /api/operations | 각 데이터의 GET·POST·PUT. 로컬 전용, Zod 검증과 수정 충돌 검사. |
+| /api/expenses, /api/assets, /api/operations | 각 데이터의 인증된 GET·POST·PUT. Zod 검증과 수정 충돌 검사. |
 
 - lib/expense.ts: 지출 스키마, 최소 단위 금액, 영수증 검산, 날짜별 소비, 수동 표시 순서.
 - lib/asset.ts: 자산 스키마, 환율 평가, 공통 입출금으로 잔액·전후 원장 계산.
 - lib/operations.ts: 금융 기록 스키마, 연결 정합성 검증, 입출금과 소비 파생 계산. 화면에서 직접 잔액을 수정하지 않는다.
-- lib/expense-repository.ts: 자산·지출·금융 기록의 공통 저장소. 같은 파일·쓰기 큐에서 전체 연결을 검증한다.
+- lib/expense-repository.ts: 자산·지출·금융 기록의 공통 검증 및 저장 인터페이스. lib/neon-repository.ts가 DB 저장을 담당하고 로컬 파일 어댑터는 기존 기록 보존·회귀 테스트용으로 남아 있다.
 - expense-form / receipt-editor / topup-editor / expense-connections: 결제·명세·충전·정렬·평가 기준 입력.
 - operation-form / operation-editors: 공통 저장 폼과 종류별 입력. finance-book: 메뉴 목록과 금융 기록 상세.
 - daily-book / monthly-book / expense-view / asset-overview / asset-view: 공통 계산 결과를 보여주는 조회 화면.
@@ -63,31 +63,30 @@
 
 ## 저장과 캐시
 
-- 로그인 전 체험 기록은 .local/demo-ledger-v1.json에 보존한다. 로그인 후에는 Clerk userId의 SHA-256 이름으로 .local/users/<hash>.json에 계정별 version 1 장부를 저장한다. 새 계정은 빈 장부로 시작하며 체험 기록을 자동으로 가져오지 않는다. 각 파일은 expenses/assets/operations를 담으며 .local은 Git에서 제외된다. 손상된 파일을 초기 데이터로 덮어쓰지 않는다.
-- 단일 Node 프로세스의 공유 쓰기 큐에서 읽기 → revision/연결 검증 → 임시 파일 작성 → rename을 수행한다. 중복 생성 재시도는 같은 결과를 반환하고 오래된 수정은 409다. 여러 프로세스 동시 쓰기는 지원하지 않는다.
-- 개발 HMR에서는 쓰기 큐만 globalThis에 유지한다. 저장 함수 자체를 캐시하지 않아 이전 스키마·검증 함수가 남는 것을 방지한다. RepositoryError는 모듈 갱신 후에도 예상한 HTTP 오류로 반환한다.
-- 모든 장부 API는 서버의 Clerk auth()에서 userId를 확인하며 미인증 요청은 401이다. 클라이언트가 지정한 소유자 ID는 사용하지 않는다. 로컬 저장 단계이므로 loopback Host·동일 Origin 제한과 Vercel 차단을 유지한다. Cache-Control은 private, no-store. AuthenticatedBook은 계정이 바뀔 때 SWR 캐시와 입력 화면을 새로 만들며 로그인 전에는 장부 UI를 렌더링하지 않는다.
-- SWR이 자산·지출·금융 기록의 공통 캐시를 구독하고 중복 조회를 줄인다. 각 저장 응답으로 캐시를 교체한다. 충전 동시 저장은 금융 기록 캐시도 갱신한다. 계산한 원장·소비는 연결된 모든 캐시에서 다시 산출한다.
+- 실제 API는 Neon의 moneybook.books에 Clerk userId별 한 행을 저장한다. payload(JSONB)는 version 1 장부의 expenses/assets/operations, revision은 장부 전체의 비교 갱신 버전이다. 기존 검증이 전체 연결을 함께 검사하므로 결제·충전도 한 UPDATE로 원자 저장한다. 기록량이 커질 경우 날짜별 조회·테이블 분리를 검토할 수 있도록 BookStorage 인터페이스로 분리했다.
+- INSERT 충돌 또는 UPDATE의 owner_id+revision 불일치를 감지하면 최신 장부를 읽고 최대 5회 재검증한다. 개별 기록의 오래된 수정은 409, 같은 생성 요청 재시도는 중복을 만들지 않는다. 서로 다른 서버 프로세스의 동시 쓰기도 DB 비교 갱신으로 보호한다.
+- 모든 API는 서버의 Clerk auth()에서 userId를 얻는다. 요청 본문의 사용자 ID를 소유자로 사용하지 않는다. 미인증은 401, 다른 Origin 및 Sec-Fetch-Site: cross-site는 403이다. DB 설정 누락·접속 실패 시 로컬 파일로 대체하지 않는다. API 응답은 private, no-store다.
+- 같은 계정·DB에 동시에 도착한 서버 조회만 Promise로 합친다. 완료된 데이터를 서버에 장기 캐시하지 않는다. 클라이언트 SWR은 30초 중복 조회 억제·포커스 재검증을 사용하며 각 저장 응답으로 현재 계정의 캐시를 갱신한다. 계정 변경 시 캐시와 입력 화면을 새로 만든다. 다른 기기의 변경은 다음 재조회 때 반영되며 실시간 구독은 없다.
+- 이전 .local/demo-ledger-v1.json 및 .local/users 파일은 보존하고 자동 이관하지 않는다. 새 DB 계정은 빈 장부에서 시작한다. 전환 전 계정별 로컬 파일 수는 0이었다.
 - 입력 오류·저장 충돌 때 입력을 유지하며 미저장 이동/페이지 종료 경고가 있다. 브라우저 뒤로/앞으로 이동의 모든 상황에서 초안 보존을 보장하지는 않는다.
 
 ## 실행과 검증
 
-npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 일치하도록 dev/start의 hostname을 localhost로 통일했다. 이전 보관 웹 4318과 별개다. build/start/lint/typecheck/test 스크립트를 제공한다. Next의 AGENTS 자동 작성은 agentRules: false로 껐다. 개발 서버와 빌드는 생성 타입 충돌을 피하도록 동시에 시작하지 않는다.
+npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 일치하도록 dev/start의 hostname을 localhost로 통일했다. 이전 보관 웹 4318과 별개다. 개발 서버와 빌드를 동시에 시작하면 생성 타입 파일이 충돌할 수 있다. 최종 브라우저 검증 및 현재 실행은 npm run build 후 npm start를 사용했다. 이전 인증 작업의 개발 모드 반복 새로고침 원인은 미해결이며 이번 DB 연결의 프로덕션 빌드 실행에서는 발생하지 않았다.
 
-- 자동 테스트 28개: 계정별 장부 격리·빈 장부 시작·타 계정 수정 거절 및 기존 금액·기간·날짜·저장·자산 검증에 회수 중복 방지, 보험금 배분·초과, 통화별 이동, 0원 교통·기관별 출금, 명세서 검산/납부/연회비, 취소 방식, 이월·늦은 승인, 수동 순서, 충전 원자 저장·재시도·연결 해제·충돌 검증을 추가했다.
-- TypeScript, ESLint, 프로덕션 빌드 검증을 수행한다. 현재 기능은 로컬 체험 API를 사용한다.
-- 브라우저에서 가상 계좌 추가 → 달러 환전 → 분담금 회수 → 카드 검산·납부 → 충전+결제 → 템플릿 등록·불러오기 → 교통 여정 → 보험금 배분 → 하이패스 일부 출금 → 카드 취소 → 수입 저장을 실행했다. 명세서 새로고침 후 보존도 확인했다.
-- 가상 카드 명세서 164,005원(연회비 2,000원 포함), 충전 10,000원과 결제 1,500원, 의료비 30,000원과 보험금 20,000원으로 소비 10,000원, 하이패스 기관 A 출금 후 B 2,000원 미정산을 확인했다. 이 예시는 로컬 파일에만 있고 공개 fixture에 추가하지 않았다.
-- API에서 중복 요청 추가 생성 없음, 오래된 revision 409, 다른 Origin 403, 잘못된 입력 400, private/no-store를 확인했다. HMR 시 오류 클래스가 달라 500으로 나가던 문제를 수정하고 재확인했다.
-- PC와 모바일의 새로운 화면을 확인했다. 모바일 월간·이동 입력에서 페이지 가로 넘침이 없고 원장 표는 내부에서 스크롤한다.
+- npm test: 30개. 기존 금액·기간·원장·연결 검증 외에 계정 분리·다른 Origin 차단·DB 설정 누락 시 로컬 대체 금지를 포함한다.
+- npm run test:db: 전용 .env.neon-test.local이 필요하다. 검증 브랜치에서 동시 최초 저장, 계정 분리, 오래된 revision 충돌, 결제+충전 원자 저장, 중복 재시도, 잘못된 연결의 전체 보존, 금융 기록 저장을 확인했다. 테스트가 생성한 임의 식별자의 행만 정리한다.
+- 브라우저: 검증 DB에서 자산 10,000원 추가 → 지출 1,200원 저장 → 새로고침 보존 → 1,500원 수정 → 원장 8,500원 확인. 실제 DB 행도 별도 조회했다. 테스트 기록은 실제 장부에 넣지 않았다.
+- 타입 검사·ESLint·프로덕션 빌드를 확인한다. 변경 전 로컬 체험에서 확인했던 카드·보험·교통 등의 상세 시나리오는 공통 검증 코드와 회귀 테스트로 유지한다.
 
-## 남은 서비스 연결과 범위
+## 연결 대상과 마이그레이션
 
-2026-10-19 연결 대상 합의: Neon은 `sparkling-pond-46696613`이며 API에서 프로젝트명 MoneyBook과 기본 production 브랜치의 존재를 확인했다. DB 내용·스키마는 아직 조사하거나 변경하지 않았다. Vercel은 기존 moneybook 프로젝트를 재사용하는 방향이다. 기존 로컬 연결 정보로 대상을 식별했으나 현재 Vercel 커넥터는 해당 팀 조회 권한 403으로 원격 설정 확인이 안 됐다. Clerk는 유니버스 공통 앱을 유지하며 사용자가 환경변수를 직접 설정한다.
-
-`.env.example`에 변수 이름만 기록했다: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `DATABASE_URL`. 실제 값은 Git에서 제외된 `.env.local` 또는 Vercel 환경변수에 입력한다. 로컬에는 Development Clerk 키를 사용한다. ClerkProvider·clerkMiddleware와 API 인증은 연결했다. DATABASE_URL은 읽기 전용 접속 확인에만 사용하며 실제 장부 저장에는 아직 사용하지 않는다. npm run check:connections로 비밀값을 출력하지 않고 키 모드 및 DB 접속을 점검한다. 현재 접속 DB에서 조회되는 사용자 테이블 수는 0이었으며 원격 스키마를 변경하지 않았다.
-
-Neon 스키마·영속 저장 전환, 서비스 이용 대상 확정, Vercel 배포는 후속 작업이다. 현재 인증은 계정별 로컬 장부 격리이며 공개 다중 사용자 서비스 출시를 의미하지 않는다. 자동 은행 동기화·환율 조회는 없으며 실제 거래 데이터도 가져오지 않았다. 종합 대시보드·투자·대출, 부분 취소·복잡한 재정산 등 VISION에서 보류한 기능은 구현 완료로 취급하지 않는다.
+- Neon: sparkling-pond-46696613, DB neondb. 실제 연결은 사용자가 지정한 .env.local의 DATABASE_URL을 사용한다. production 브랜치에 migrations/001_books.sql을 적용했다. 기존 레거시 데이터나 비공개 설정을 가져오지 않았다.
+- moneybook-integration 브랜치(br-lucky-dawn-aosyj1r1)는 마이그레이션·DB 통합 및 브라우저 테스트용으로 만들었고 재검증용으로 유지한다. 기본 자동 일시정지 정책을 사용한다. 실제 앱은 이 브랜치가 아닌 .env.local로 실행한다.
+- npm run db:migrate는 버전 관리된 SQL을 하나의 트랜잭션으로 적용한다. 기본 .env.local, 검증용은 MONEYBOOK_ENV_FILE=.env.neon-test.local을 사용한다. 재실행은 기존 행을 변경하지 않는다. 스키마 자동 생성은 요청 처리 중 실행하지 않는다.
+- NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY / DATABASE_URL은 환경변수로만 관리한다. 로컬에는 Development Clerk 키를 사용한다. npm run check:connections는 비밀값 없이 연결을 점검한다. Vercel에는 해당 환경의 Clerk 키·DATABASE_URL을 별도로 설정해야 한다.
+- Vercel은 기존 moneybook 프로젝트 재사용 방향이다. 현재 커넥터는 해당 팀 조회 권한 403으로 원격 설정 확인이 안 됐다. 배포와 공개 서비스 이용 대상 확정은 남아 있다.
+- 자동 은행 동기화·환율 조회, 종합 대시보드·투자·대출, 부분 취소·복잡한 재정산 등 보류한 기능은 구현 완료로 취급하지 않는다.
 
 사용자는 반복 논의를 줄이고 연결된 결과를 먼저 보고 싶어 한다. 합의된 범위는 묶어서 구현·검증한다. 중요한 제품 방향·운영환경 변경은 별도 합의한다.
 
@@ -126,7 +125,3 @@ Neon 스키마·영속 저장 전환, 서비스 이용 대상 확정, Vercel 배
 ### 이전 화면 시안
 
 일반 지출·상품 명세·통화·충전·분담금·보험금·카드 명세서·취소·연속 이동·교통 등을 연결한 가상 데이터 시안이 별도로 있다. 실제 DB 저장을 하는 앱은 아니며, 그 화면의 세부 동작을 모두 승인된 요구사항으로 취급하지 않는다. 합의한 내용은 `VISION.md`로 이어받았다.
-
-이번 인증 검증: 타입 검사·린트·테스트 28개·프로덕션 빌드 통과. 미인증 GET/POST/PUT 9개 요청에서 401 확인. 브라우저에서 공통 Clerk 로그인 및 로그인 후 빈 장부 조회 확인. 실제 브라우저 저장·계정 전환 시나리오는 미검증이며 저장소 격리는 자동 테스트로 확인했다.
-
-검증 중 개발 모드의 브라우저 반복 새로고침이 관찰되어 최종 화면 검증은 npm run build 후 npm start로 수행했다. 현재 4320은 빌드 실행 서버다. 개발 모드의 반복 새로고침 원인은 추가 확인이 필요하다.

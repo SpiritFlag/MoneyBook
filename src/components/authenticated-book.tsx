@@ -17,7 +17,7 @@ export function AuthenticatedBook({ children }: { children: React.ReactNode }) {
   );
   return <SWRConfig key={userId} value={accountCache}>
     <div className="flex items-center justify-end gap-3 px-5 pt-4 text-xs text-muted-foreground">
-      <span>계정별 로컬 장부</span><UserButton />
+      <span>나의 머니북</span><UserButton />
     </div>
     {children}
   </SWRConfig>;

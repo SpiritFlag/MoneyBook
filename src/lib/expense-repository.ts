@@ -10,8 +10,13 @@ import { seedExpenses } from "./seed-expenses";
 export class RepositoryError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "RepositoryError"; }
 }
-const storedSchema = z.object({ version: z.literal(1), expenses: z.array(expenseSchema), assets: z.array(assetSchema).default([]), operations: z.array(operationSchema).default([]) });
-type Book = z.infer<typeof storedSchema>;
+export const storedSchema = z.object({ version: z.literal(1), expenses: z.array(expenseSchema), assets: z.array(assetSchema).default([]), operations: z.array(operationSchema).default([]) });
+export type Book = z.infer<typeof storedSchema>;
+export type PersistBook = (book: Book) => Promise<void>;
+export interface BookStorage {
+  read(): Promise<Book>;
+  transact<T>(operation: (book: Book, persist: PersistBook) => Promise<T>): Promise<T>;
+}
 
 // 자산과 지출을 같은 쓰기 큐·파일에서 검증하고 저장합니다.
 type WriteQueue = { writes: Promise<unknown> };
@@ -23,20 +28,30 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
       throw new RepositoryError("체험 장부를 읽지 못했어요. 기존 파일은 보존했어요. 서버 로그를 확인해 주세요.", 500);
     }
   }
-  async function write(book: Book, verifyingId?: string) {
-    try { validateOperations(book, verifyingId); } catch (error) { throw new RepositoryError(error instanceof Error ? error.message : "연결 거래를 확인해 주세요.", 400); }
+  async function write(book: Book) {
     await mkdir(path.dirname(file), { recursive: true });
     const temporary = `${file}.${randomUUID()}.tmp`;
     await writeFile(temporary, JSON.stringify(book, null, 2), { encoding: "utf8", flag: "wx" });
     await rename(temporary, file);
   }
-  function enqueue<T>(operation: (book: Book) => Promise<T>): Promise<T> {
-    const result = queue.writes.then(async () => operation(await read()));
+  function enqueue<T>(operation: (book: Book, persist: PersistBook) => Promise<T>): Promise<T> {
+    const result = queue.writes.then(async () => operation(await read(), write));
     queue.writes = result.catch(() => undefined);
     return result;
   }
+  return createBookRepository({ read, transact: enqueue });
+}
+
+// 저장 위치와 무관하게 동일한 거래 검증·수정 규칙을 적용합니다.
+export function createBookRepository(storage: BookStorage) {
+  const read = () => storage.read();
+  const enqueue: BookStorage["transact"] = (operation) => storage.transact(operation);
+  async function write(book: Book, persist: PersistBook, verifyingId?: string) {
+    try { validateOperations(book, verifyingId); } catch (error) { throw new RepositoryError(error instanceof Error ? error.message : "연결 거래를 확인해 주세요.", 400); }
+    await persist(book);
+  }
   function save(input: ExpenseInput, id: string, expectedRevision: number | null): Promise<Expense[]> {
-    return enqueue(async (book) => {
+    return enqueue(async (book, persist) => {
       input = expenseInputSchema.parse(input);
       if (input.assetId) {
         const asset = book.assets.find((a) => a.id === input.assetId);
@@ -67,12 +82,12 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
       }
       const record: Expense = { ...input, id, revision: index >= 0 ? expenses[index].revision + 1 : 1, createdAt: index >= 0 ? expenses[index].createdAt : now, updatedAt: now };
       if (index >= 0) expenses[index] = record; else expenses.unshift(record);
-      await write(book);
+      await write(book, persist);
       return expenses;
     });
   }
   function saveAsset(input: AssetInput, id: string, revision: number | null): Promise<Asset[]> {
-    return enqueue(async (book) => {
+    return enqueue(async (book, persist) => {
       input = assetInputSchema.parse(input);
       const index = book.assets.findIndex((a) => a.id === id);
       if (revision !== null && index < 0) throw new RepositoryError("수정할 자산을 찾을 수 없어요.", 404);
@@ -87,12 +102,12 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
       const now = new Date().toISOString();
       const record: Asset = { ...input, id, revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
       if (previous) book.assets[index] = record; else book.assets.push(record);
-      await write(book);
+      await write(book, persist);
       return book.assets;
     });
   }
   function saveOperation(input: OperationInput, id: string, revision: number | null): Promise<Operation[]> {
-    return enqueue(async (book) => {
+    return enqueue(async (book, persist) => {
       input = operationInputSchema.parse(input);
       const index = book.operations.findIndex((o) => o.id === id);
       const previous = book.operations[index];
@@ -107,7 +122,7 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
       const now = new Date().toISOString();
       const record: Operation = { ...input, id, revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
       if (previous) book.operations[index] = record; else book.operations.push(record);
-      await write(book, id);
+      await write(book, persist, id);
       return book.operations;
     });
   }

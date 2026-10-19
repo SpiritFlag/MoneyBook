@@ -50,7 +50,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   const card = value.paymentKind === "card";
   const personalKrw = ownKrw(value);
   return <>
-    <header className="mb-7 flex flex-wrap items-center justify-between gap-3"><div><Button type="button" variant="ghost" size="sm" className="mb-3 -ml-3 text-muted-foreground" onClick={cancel}><ArrowLeft size={16} />{existing ? "상세로 돌아가기" : "일일 내역으로"}</Button><h1 className="text-3xl font-bold tracking-tight">{existing ? "지출 수정" : "지출 기록"}</h1><p className="mt-2 text-sm text-muted-foreground">결제한 총액부터, 기억나는 이야기까지.</p></div><span className="demo-badge">PC 체험 장부</span></header>
+    <header className="mb-7 flex flex-wrap items-center justify-between gap-3"><div><Button type="button" variant="ghost" size="sm" className="mb-3 -ml-3 text-muted-foreground" onClick={cancel}><ArrowLeft size={16} />{existing ? "상세로 돌아가기" : "일일 내역으로"}</Button><h1 className="text-3xl font-bold tracking-tight">{existing ? "지출 수정" : "지출 기록"}</h1><p className="mt-2 text-sm text-muted-foreground">결제한 총액부터, 기억나는 이야기까지.</p></div><span className="demo-badge">나의 장부</span></header>
     <form noValidate onSubmit={async (event) => {
       event.preventDefault();
       if (submitting.current) return;
@@ -108,7 +108,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
           <div ref={errorRef} tabIndex={-1} role={error ? "alert" : undefined} className={error ? "mt-4 rounded-xl bg-red-50 p-4 text-sm leading-6 text-destructive" : ""}>{error}</div>
           <Button type="submit" size="lg" disabled={busy} className="mt-5 w-full"><Save size={16} />{busy ? "저장 중…" : existing ? "수정 저장" : "저장하고 상세 보기"}</Button>
           <Button type="button" variant="ghost" className="mt-2 w-full" onClick={cancel}>취소</Button>
-          <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">이 PC의 체험 장부에 저장돼요.</p>
+          <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">로그인한 계정의 장부에 저장돼요.</p>
         </aside>
       </fieldset>
     </form>

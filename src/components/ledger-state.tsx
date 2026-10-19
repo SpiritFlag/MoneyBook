@@ -8,5 +8,5 @@ export function LedgerState({ error, retry }: { error?: Error; retry: () => void
   </div>;
 }
 export function DemoNotice() {
-  return <p className="mt-6 px-1 text-xs leading-6 text-muted-foreground">로그인한 계정의 장부를 이 PC에 저장해요. 클라우드 저장 연결 전이라 다른 기기와 동기화되지 않아요.</p>;
+  return <p className="mt-6 px-1 text-xs leading-6 text-muted-foreground">로그인한 계정의 장부를 클라우드에 저장해요. 저장을 마친 기록은 같은 계정으로 다시 확인할 수 있어요.</p>;
 }
