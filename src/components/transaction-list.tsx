@@ -26,6 +26,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
       const transaction = row.expense;
       const category = categories[transaction.category];
       const shared = transaction.shared;
+      const won = netConsumption(transaction, operations);
       const paymentOnly = transaction.useKind === "period" || bookDate(transaction.useDate, transaction.useTime) !== date;
       return <li key={transaction.id} className="px-2 sm:px-3">
         <Link href={`${expenseHref(transaction.id)}?from=${date}`} aria-label={`${transaction.title} 상세 보기`} className={`transaction-link ${paymentOnly ? "transaction-payment-only" : ""} group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4`}>
@@ -40,6 +41,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
         </div>
         <div className="shrink-0 text-right tabular-nums">
           <p className="text-base font-semibold sm:text-lg">{cancelled(transaction.id, operations) ? formatMinor(0, transaction.currency) : insuranceRecovered(transaction.id, operations) > 0 ? formatMinor(netConsumption(transaction, operations) ?? 0, "KRW") : formatMinor(ownMinor(transaction), transaction.currency)}</p>
+          {transaction.currency !== "KRW" ? <p className="mt-1 text-sm text-primary">{won === null ? "원화 미확정" : `원화 ${formatMinor(won, "KRW")}`}</p> : null}
           {shared ? <><p className="mt-1 text-xs font-medium text-primary">본인 소비</p><p className="mt-1 text-xs text-muted-foreground">결제 {formatMoney(transaction.paidAmount, transaction.currency)}</p></> : null}
         </div>
         <ChevronRight aria-hidden="true" size={16} className="hidden shrink-0 text-primary/35 transition-colors group-hover:text-primary sm:block" />
