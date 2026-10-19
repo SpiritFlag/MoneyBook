@@ -11,7 +11,7 @@ import { DemoNotice } from "@/components/ledger-state";
 import { Field, FormSection } from "@/components/form-fields";
 import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { changeExpenseDate, followsPaymentDate, categories, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
+import { changeExpenseDate, changeExpenseTime, followsPaymentDate, followsPaymentTime, categories, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
 import { useCards } from "@/lib/use-cards";
 import Link from "next/link";
 import { useAssets } from "@/lib/use-assets";
@@ -44,7 +44,13 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
       next = { ...next, krwAmount: won === null ? null : String(won), valuationRate: definition.fixedRate, valuationSource: "재화 고정 환율" };
     }
     setValue(next); setDirty(true); setError(""); }
-  function field<K extends keyof ExpenseInput>(key: K, next: ExpenseInput[K]) { change((key === "paymentDate" || key === "useDate") && typeof next === "string" ? changeExpenseDate(value, key, next) : { ...value, [key]: next }); }
+  function field<K extends keyof ExpenseInput>(key: K, next: ExpenseInput[K]) {
+    if ((key === "time" || key === "useTime") && (typeof next === "string" || next === null)) {
+      change(changeExpenseTime(value, key, next));
+    } else {
+      change((key === "paymentDate" || key === "useDate") && typeof next === "string" ? changeExpenseDate(value, key, next) : { ...value, [key]: next });
+    }
+  }
   useEffect(() => {
     if (!dirty) return;
     const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); };
@@ -104,7 +110,10 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
               <Field label={card ? "승인일" : "결제일"}><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.paymentDate} onChange={(e) => field("paymentDate", e.target.value)} /></Field>
               <Field label={card ? "승인 시각 (선택)" : "결제 시각 (선택)"} hint="모르면 비워 두세요. 시각 미확인으로 남겨요."><TimeInput value={value.time} onChange={time => field("time", time)} /></Field>
               <Field label={value.useKind === "period" ? "이용 시작일" : "이용일"} hint={followsPaymentDate(value) ? "결제일을 따라가요. 직접 바꾸면 별도 이용일로 유지돼요." : "직접 지정한 이용일이에요. 결제일을 바꿔도 유지돼요."}><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.useDate} onChange={(e) => field("useDate", e.target.value)} /></Field>
-              <Field label={value.useKind === "period" ? "이용 시작 시각 (선택)" : "이용 시각 (선택)"} hint="일일 내역을 정렬할 시각이에요. 모르면 비워 두세요."><TimeInput value={value.useTime} onChange={time => field("useTime", time)} /></Field>
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!followsPaymentTime(value)} onChange={e => change({ ...value, useTimeFollowsPayment: !e.target.checked, useTime: e.target.checked ? value.useTime : value.time })} />이용 시각을 따로 입력</label>
+                {followsPaymentTime(value) ? <p className="text-xs leading-5 text-muted-foreground">{value.time === null ? "결제 시각과 함께 시각 미확인으로 남겨요." : `결제 시각 ${value.time}과 같게 기록해요.`}</p> : <Field label={value.useKind === "period" ? "이용 시작 시각 (선택)" : "이용 시각 (선택)"} hint="일일 내역을 정렬할 시각이에요. 모르면 비워 두세요."><TimeInput value={value.useTime} onChange={time => field("useTime", time)} /></Field>}
+              </div>
               {value.useKind === "period" ? <Field label="이용 종료일"><input className="form-control" type="date" min={value.useDate} max="9999-12-31" value={value.useEnd ?? ""} onChange={(e) => field("useEnd", e.target.value || null)} /></Field> : <div className="flex items-end"><Button type="button" variant="ghost" className="text-primary" onClick={() => change({ ...value, useDate: value.paymentDate, useDateFollowsPayment: true })}>결제일과 같게 · 자동 연결</Button></div>}
             </div>
             {value.useKind === "period" ? <div className="mt-5"><Field label="월간 소비 반영"><select className="form-control" value={value.allocation} onChange={(e) => field("allocation", e.target.value as ExpenseInput["allocation"])}><option value="start">시작월에 전액</option><option value="annual">연간 결제 · 12개월 배분</option></select></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">기간형은 일일 소비에 더하지 않고 월간 정기지출에 반영해요. 연간 배분의 원 단위 나머지는 첫 달에 더해요.</p></div> : null}

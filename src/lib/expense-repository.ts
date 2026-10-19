@@ -57,6 +57,7 @@ export function createBookRepository(storage: BookStorage) {
   function save(input: ExpenseInput, id: string, expectedRevision: number | null): Promise<Expense[]> {
     return enqueue(async (book, persist) => {
       input = expenseInputSchema.parse(input);
+      if (input.useTimeFollowsPayment === true) input = { ...input, useTime: input.time };
       for (const code of [input.currency, input.receiptCurrency]) if (isCustomCurrency(code) && !book.gameCurrencies.some(c => c.code === code)) throw new RepositoryError("먼저 게임 재화를 등록해 주세요.", 400);
       const definition = book.gameCurrencies.find(c => c.code === input.currency);
       if (definition) {

@@ -68,6 +68,7 @@ const baseExpenseSchema = z.object({
   useKind: z.enum(["once", "period"]),
   useDate: dateSchema,
   useDateFollowsPayment: z.boolean().optional(),
+  useTimeFollowsPayment: z.boolean().optional(),
   sortOrder: z.number().finite().default(0),
   orderReference: z.string().max(80).nullable().default(null),
   orderSide: z.enum(["before", "after"]).default("after"),
@@ -193,6 +194,14 @@ export function monthAmount(value: ExpenseInput, month: string): number | null |
 
 export function followsPaymentDate(value: ExpenseInput): boolean {
   return value.useDateFollowsPayment ?? value.useDate === value.paymentDate;
+}
+export function followsPaymentTime(value: ExpenseInput): boolean {
+  return value.useTimeFollowsPayment ?? value.useTime === value.time;
+}
+export function changeExpenseTime(value: ExpenseInput, field: "time" | "useTime", time: string | null): ExpenseInput {
+  if (field === "useTime") return { ...value, useTime: time, useTimeFollowsPayment: false };
+  const follows = followsPaymentTime(value);
+  return { ...value, time, useTime: follows ? time : value.useTime, useTimeFollowsPayment: follows };
 }
 export function changeExpenseDate(value: ExpenseInput, field: "paymentDate" | "useDate", date: string): ExpenseInput {
   if (field === "useDate") return { ...value, useDate: date, useDateFollowsPayment: false };
