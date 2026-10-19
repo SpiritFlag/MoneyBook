@@ -12,6 +12,7 @@ import {
 } from "./expense";
 import { signedMinor, rateUnits, type Asset } from "./asset";
 import { parseDateQuery } from "./date";
+import { transitLegSchema, transitFundingSchema, transitEvents, transitFare, transitTotals, transitRoute, validateTransitLegs, validTransitTime, transitSeconds } from "./transit";
 
 export const incomeCategories = {
   employment: { label: "근로소득", image: "/characters/income_employment.png" },
@@ -37,7 +38,7 @@ const date = z
   .refine((v) => parseDateQuery(v) !== null, "날짜를 확인해 주세요.");
 const time = z
   .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+  .regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/)
   .nullable();
 const text = z.string().max(120);
 const amount = z.string().max(20);
@@ -94,6 +95,9 @@ export const operationInputSchema = z.object({
   parentId: text.default(""),
   memo: z.string().max(2000),
   rows: z.array(rowSchema).max(100),
+  journey: z.array(transitLegSchema).max(20).optional(),
+  transitFunding: transitFundingSchema.nullable().optional(),
+  transitPaymentDate: date.optional(),
   allocations: z
     .array(
       z.object({ targetId: text, itemId: text, amount, deductible: amount }),
@@ -180,6 +184,14 @@ export function newRow(date: string, id: string): OperationRow {
 }
 export function cancelled(id: string, ops: readonly Operation[]) {
   return ops.some((o) => o.kind === "cancel" && o.sourceId === id);
+}
+export function normalizeTransitOperation<T extends OperationInput>(input: T): T {
+  if (input.kind !== "transit" || input.journey === undefined) return input;
+  const rows = transitEvents(input.journey).map(event => ({
+    ...newRow(input.date, event.id), name: event.tap.place, action: event.action,
+    route: transitRoute(event.vehicle), time: event.tap.time, amount: String(transitFare(event.tap).total),
+  }));
+  return { ...input, rows, amount: String(transitTotals(input.journey).total), time: input.journey[0]?.board.time ?? null };
 }
 export function insuranceRecovered(id: string, ops: readonly Operation[]) {
   return ops
@@ -358,6 +370,11 @@ export function operationPostings(
           op.parentId ? -1 : i,
         );
       });
+    if (op.kind === "transit" && op.transitFunding) {
+      const funding = op.transitFunding;
+      add(funding.fromId, funding.amount, -1, funding.date, funding.time, "funding-out", `${op.title} · 사용 전 충전 출금`, -2);
+      add(op.assetId, funding.amount, 1, funding.date, funding.time, "funding-in", `${op.title} · 사용 전 충전 입금`, -2);
+    }
     if (op.kind === "transit")
       op.rows.forEach((r, i) =>
         add(
@@ -368,6 +385,7 @@ export function operationPostings(
           r.time,
           String(i),
           `${op.title} · ${r.name}`,
+          i,
         ),
       );
     if (
@@ -409,7 +427,8 @@ export function operationExpenses(ops: readonly Operation[]): Expense[] {
             ? "후불 하이패스"
             : "선불교통카드",
       paymentKind: "stored",
-      time: op.kind === "statement" ? op.payment?.time ?? null : op.time,
+      paymentDate: op.kind === "transit" ? op.transitPaymentDate ?? date : date,
+      time: op.kind === "statement" ? op.payment?.time ?? null : op.kind === "transit" && op.transitPaymentDate && op.transitPaymentDate !== op.date ? null : op.time,
       useTime: op.kind === "statement" ? op.payment?.time ?? null : op.time,
       useKind: op.kind === "statement" ? "period" : "once",
       useEnd: op.kind === "statement" ? date : null,
@@ -581,6 +600,19 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       if (op.kind === "transit") {
         const a = asset(op.assetId, "KRW");
         if (a.kind !== "stored") fail("선불교통카드 자산을 선택해 주세요.");
+        if (op.journey !== undefined) {
+          validateTransitLegs(op.journey);
+          const projected = normalizeTransitOperation(op);
+          if (JSON.stringify(projected.rows) !== JSON.stringify(op.rows) || projected.amount !== op.amount || projected.time !== op.time)
+            fail("교통 구간과 승하차·총액이 일치하지 않아요.");
+        }
+        if (op.transitFunding) {
+          const f = op.transitFunding;
+          asset(f.fromId, "KRW");
+          if (f.fromId === op.assetId || money(f.amount, "KRW") <= 0) fail("충전 출발 자산과 금액을 확인해 주세요.");
+          if (parseDateQuery(f.date) === null || !validTransitTime(f.time)) fail("충전 날짜·시각을 확인해 주세요.");
+          if (f.date > op.date || (f.date === op.date && f.time !== null && op.rows[0]?.time !== null && op.rows[0]?.time && transitSeconds(f.time) > transitSeconds(op.rows[0].time))) fail("사용 전 충전은 첫 승차보다 늦을 수 없어요.");
+        }
       }
       let sum = 0;
       for (const row of op.rows) {

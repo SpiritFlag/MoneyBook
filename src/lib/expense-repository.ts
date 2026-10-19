@@ -8,7 +8,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import { expenseInputSchema, expenseSchema, type Expense, type ExpenseInput } from "./expense";
 import { assetInputSchema, assetSchema, type AssetInput, type Asset } from "./asset";
-import { operationInputSchema, operationSchema, validateOperations, operationPostings, newOperation, newRow, type Operation, type OperationInput } from "./operations";
+import { operationInputSchema, operationSchema, normalizeTransitOperation, validateOperations, operationPostings, newOperation, newRow, type Operation, type OperationInput } from "./operations";
 import { seedExpenses } from "./seed-expenses";
 
 export class RepositoryError extends Error {
@@ -123,7 +123,7 @@ export function createBookRepository(storage: BookStorage) {
   }
   function saveOperation(input: OperationInput, id: string, revision: number | null): Promise<Operation[]> {
     return enqueue(async (book, persist) => {
-      input = operationInputSchema.parse(input);
+      input = operationInputSchema.parse(normalizeTransitOperation(operationInputSchema.parse(input)));
       const index = book.operations.findIndex((o) => o.id === id);
       const previous = book.operations[index];
       if (revision !== null && !previous) throw new RepositoryError("기록을 찾을 수 없어요.", 404);

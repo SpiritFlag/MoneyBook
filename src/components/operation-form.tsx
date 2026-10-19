@@ -31,6 +31,10 @@ import {
 import { expenseInputSchema, type Currency } from "@/lib/expense";
 import { saveOperation, operationsKey } from "@/lib/use-operations";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
+import { newTransitLeg } from "@/lib/transit";
+import { normalizeTransitOperation } from "@/lib/operations";
+import { TransitEditor } from "./transit-editor";
+import { formatMoney } from "@/lib/expense";
 
 export function OperationForm({
   kind,
@@ -52,6 +56,7 @@ export function OperationForm({
   const [value, setValue] = useState<OperationInput>(() => {
     if (existing) return structuredClone(existing);
     const next = newOperation(kind, date);
+    if (kind === "transit") next.journey = [newTransitLeg("first")];
     if (["transfer", "transit", "toll"].includes(kind))
       next.rows = [newRow(date, "first")];
     if (["recovery", "insurance", "toll-payment"].includes(kind))
@@ -80,7 +85,7 @@ export function OperationForm({
     submitting = useRef(false);
   useUnsavedChanges(dirty);
   function change(next: OperationInput) {
-    setValue(next);
+    setValue(normalizeTransitOperation(next));
     setDirty(true);
     setError("");
   }
@@ -103,7 +108,7 @@ export function OperationForm({
         onSubmit={async (event) => {
           event.preventDefault();
           if (submitting.current) return;
-          const parsed = operationInputSchema.safeParse(value);
+          const parsed = operationInputSchema.safeParse(normalizeTransitOperation(value));
           if (!parsed.success) {
             setError(
               parsed.error.issues
@@ -147,13 +152,13 @@ export function OperationForm({
             </Field>
             {kind !== "template" ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <DateTimeFields
+                {kind === "transit" && value.journey !== undefined ? <Field label="이용일"><input type="date" className="form-control" value={value.date} onChange={e => change(changeOperationDate(value, e.target.value))} /></Field> : <DateTimeFields
                   date={value.date}
                   time={value.time}
                   onDate={(date) => change(changeOperationDate(value, date))}
                   onTime={(time) => change({ ...value, time })}
-                />
-                {kind !== "transfer" ? (
+                />}
+                {kind === "transit" && value.journey !== undefined ? <p className="self-end pb-3 text-sm font-semibold">교통비 합계 {formatMoney(value.amount, "KRW")} · 운임에서 자동 계산</p> : kind !== "transfer" ? (
                   <MoneyField
                     label={
                       kind === "statement"
@@ -207,7 +212,8 @@ export function OperationForm({
           </section>
           <section className="book-sheet space-y-6 rounded-3xl bg-card p-5 sm:p-8">
             {kind === "transfer" ? <TransferEditor {...editor} /> : null}
-            {kind === "transit" || kind === "toll" ? (
+            {kind === "transit" && value.journey !== undefined ? <TransitEditor {...editor} /> : null}
+            {(kind === "transit" && value.journey === undefined) || kind === "toll" ? (
               <JourneyEditor {...editor} />
             ) : null}
             {["recovery", "insurance", "toll-payment"].includes(kind) ? (

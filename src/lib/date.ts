@@ -48,6 +48,6 @@ export function todayInBook(now = new Date()): string {
 }
 export function bookTimeOrder(time: string | null): number {
   if (time === null) return 1440;
-  const [h, m] = time.split(":").map(Number);
-  return (h * 60 + m - 300 + 1440) % 1440;
+  const [h, m, s = 0] = time.split(":").map(Number);
+  return (h * 60 + m + s / 60 - 300 + 1440) % 1440;
 }
