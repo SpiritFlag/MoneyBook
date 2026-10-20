@@ -1,6 +1,6 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { withMcpAuth } from "mcp-handler";
-import { mcpConfig, mcpMetadataPath, oauthIdentity } from "@/lib/mcp-auth";
+import { mcpAuthOptions, mcpConfig, oauthIdentity } from "@/lib/mcp-auth";
 import { createReadOnlyMcpHandler } from "@/lib/mcp-server";
 import { createNeonBookReader } from "@/lib/neon-repository";
 
@@ -22,7 +22,7 @@ async function authenticated(request: Request) {
       const clerk = await clerkClient();
       return oauthIdentity(await clerk.idPOAuthAccessToken.verify(bearer, { audience: config.resource }), bearer, config);
     } catch { return undefined; }
-  }, { required: true, requiredScopes: ["profile"], resourceMetadataPath: mcpMetadataPath, resourceUrl: config.resource })(request);
+  }, mcpAuthOptions(config))(request);
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { withMcpAuth } from "mcp-handler";
 import { createReadOnlyMcpHandler } from "./mcp-server";
-import { mcpConfig, mcpMetadataPath, mcpUserId, oauthIdentity, type OAuthAccessToken } from "./mcp-auth";
+import { mcpAuthOptions, mcpConfig, mcpMetadataPath, mcpUserId, oauthIdentity, type OAuthAccessToken } from "./mcp-auth";
 import { storedSchema, type Book } from "./expense-repository";
 import { newAsset } from "./asset";
 import { newExpense } from "./expense";
@@ -36,11 +36,12 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
     if (bearer === "other") return oauthIdentity({ ...token, subject: "user_other" }, bearer, config);
     if (bearer === "no-scope") return oauthIdentity({ ...token, scopes: [] }, bearer, config);
     return undefined;
-  }, { required: true, requiredScopes: ["profile"], resourceMetadataPath: mcpMetadataPath, resourceUrl: config.resource });
+  }, mcpAuthOptions(config));
   for (const bearer of [undefined, "bad-token", "no-scope"]) {
     const response = await handler(new Request(config.resource, { method: "POST", headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }, body: "{}" }));
     assert.equal(response.status, bearer === "no-scope" ? 403 : 401);
     assert.match(response.headers.get("www-authenticate") ?? "", /oauth-protected-resource/);
+    assert.ok(response.headers.get("www-authenticate")?.includes(`resource_metadata="${new URL(mcpMetadataPath, config.resource).href}"`), "OAuth challenge must point at the mounted metadata route, with no duplicate /api/mcp prefix");
   }
   assert.equal(reads, 0, "Unauthorized requests must never load a book");
   async function client(bearer: string) {

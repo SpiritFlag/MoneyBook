@@ -8,6 +8,11 @@ export type OAuthAccessToken = {
   expired: boolean; expiration: number | null; aud?: string[];
 };
 
+export function mcpAuthOptions(config: McpConfig) {
+  // mcp-handler concatenates resourceUrl + resourceMetadataPath; it expects an origin here.
+  return { required: true, requiredScopes: ["profile"], resourceMetadataPath: mcpMetadataPath, resourceUrl: new URL(config.resource).origin };
+}
+
 export function mcpConfig(env: Record<string, string | undefined> = process.env): McpConfig {
   // Reuse the existing MoneyBook OAuth client, never accept another Universe app's token.
   const resource = env.MCP_RESOURCE_URL;
