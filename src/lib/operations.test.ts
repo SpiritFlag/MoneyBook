@@ -178,6 +178,37 @@ test("보험금은 명시한 의료비·상품에만 귀속하고 전체 합계 
     /본인 소비/,
   );
 });
+test("보험 비해당 상품은 ID로 보존하며 실제 귀속액만 소비에서 차감한다", async () => {
+  const folder = await mkdtemp(path.join(tmpdir(), "moneybook-insurance-exclusions-"));
+  assert.equal(path.dirname(path.resolve(folder)), path.resolve(tmpdir()));
+  try {
+    const repo = createExpenseRepository(path.join(folder, "ledger.json"));
+    await repo.saveAsset(asset(), "bank", null);
+    const medical = expense("clinic", { category: "medical", paidAmount: "31400", shared: false, items: [
+      { id: "visit", name: "진찰료", unitPrice: "16500", quantity: 1, discounts: [] },
+      { id: "test", name: "검사료", unitPrice: "9200", quantity: 1, discounts: [] },
+      { id: "certificate", name: "제증명", unitPrice: "5700", quantity: 1, discounts: [] },
+    ] });
+    await repo.save(medical, medical.id, null);
+    const input = op("insurance", { assetId: "bank", amount: "20700", allocations: [{ ...allocation(medical.id, "20700"), deductible: "5000", excludedItemIds: ["certificate"] }] });
+    await repo.saveOperation(input, "insurance", null);
+    const reopened = createExpenseRepository(path.join(folder, "ledger.json"));
+    const saved = (await reopened.listOperations())[0];
+    assert.deepEqual(saved.allocations[0].excludedItemIds, ["certificate"]);
+    assert.equal(saved.allocations[0].itemId, "");
+    assert.equal(netConsumption((await reopened.list()).find(e => e.id === medical.id)!, [saved]), 10700);
+    for (const invalid of [
+      { excludedItemIds: ["missing"] }, { excludedItemIds: ["certificate", "certificate"] },
+      { itemId: "visit", excludedItemIds: ["certificate"] },
+      { excludedItemIds: ["visit", "test", "certificate"] },
+    ]) await assert.rejects(repo.saveOperation({ ...saved, allocations: [{ ...saved.allocations[0], ...invalid }] }, saved.id, saved.revision));
+    assert.equal((await repo.listOperations())[0].revision, 1);
+    const legacy = { ...saved, allocations: [{ ...saved.allocations[0], excludedItemIds: undefined, itemId: "visit" }] };
+    await repo.saveOperation(legacy, saved.id, saved.revision);
+    assert.equal((await repo.listOperations())[0].allocations[0].itemId, "visit");
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
 test("이동 경로는 통화별 실제 수량을 기록하고 소비·일반 수입을 만들지 않는다", () => {
   const transfer = op("transfer", {
     rows: [

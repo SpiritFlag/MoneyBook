@@ -441,6 +441,8 @@ export function RecordPage({
                           ? ` · 자기부담금 ${formatMoney(a.deductible, "KRW")}`
                           : ""}
                       </p>
+                      {expense ? <p className="mt-2 text-xs text-muted-foreground">이용 {expense.useDate}{expense.useKind === "once" && expense.useTime ? ` · ${expense.useTime}` : expense.useKind === "period" ? ` ~ ${expense.useEnd}` : ""}</p> : null}
+                      {op.kind === "insurance" && a.excludedItemIds?.length ? <p className="mt-2 text-sm text-muted-foreground">비해당 · {a.excludedItemIds.map(itemId => expense?.items.find(item => item.id === itemId)?.name ?? "원거래에서 없어진 상품").join(", ")}</p> : null}
                     </li>
                   );
                 })}

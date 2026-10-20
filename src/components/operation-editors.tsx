@@ -1,5 +1,6 @@
 "use client";
 import { TimeInput } from "./time-input";
+import { InsuranceExclusions } from "./insurance-exclusions";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
 import { currencyInfo, formatMinor } from "@/lib/expense";
@@ -450,7 +451,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
         )
         .map((e) => ({
           id: e.id,
-          title: e.title,
+          title: `${e.paymentDate}${e.time ? ` ${e.time}` : " · 시각 미확인"} · ${e.title}${e.useKind === "period" ? ` · 이용 ${e.useDate} ~ ${e.useEnd}` : e.useDate !== e.paymentDate ? ` · 이용 ${e.useDate}${e.useTime ? ` ${e.useTime}` : ""}` : ""}`,
           remaining: insurance
             ? (ownKrw(e) ?? 0) -
               insuranceRecovered(
@@ -468,7 +469,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
     <div className="space-y-4">
       <p className="text-sm leading-6 text-muted-foreground">
         {insurance
-          ? "입금 한 건을 관련 의료비·상품에 직접 배분하세요. 자기부담금은 지급명세이며 소비를 추가하지 않아요."
+          ? "의료비 거래를 선택하고 보험 비해당 항목만 추가하세요. 귀속액·자기부담금은 보험사 지급명세대로 직접 입력하며 제외 항목으로 자동 계산하지 않아요."
           : toll
             ? "실제로 출금된 기관별 항목만 선택하세요. 미출금 기관은 그대로 남아요."
             : "입금 한 건에 여러 원지출을 연결할 수 있어요. 회수해도 원래 본인 소비는 유지돼요."}
@@ -490,7 +491,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
                   className="form-control"
                   value={allocation.targetId}
                   onChange={(event) =>
-                    patch({ targetId: event.target.value, itemId: "" })
+                    patch({ targetId: event.target.value, itemId: "", excludedItemIds: [] })
                   }
                 >
                   <option value="">원거래 선택</option>
@@ -508,22 +509,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
               />
               {insurance ? (
                 <>
-                  <Field label="의료비 상품 (선택)">
-                    <select
-                      className="form-control"
-                      value={allocation.itemId}
-                      onChange={(event) =>
-                        patch({ itemId: event.target.value })
-                      }
-                    >
-                      <option value="">거래 전체</option>
-                      {e?.items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                  <InsuranceExclusions expense={e} allocation={allocation} patch={patch} />
                   <MoneyField
                     label="자기부담금 · 원"
                     value={allocation.deductible}

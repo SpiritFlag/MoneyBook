@@ -100,7 +100,7 @@ export const operationInputSchema = z.object({
   transitPaymentDate: date.optional(),
   allocations: z
     .array(
-      z.object({ targetId: text, itemId: text, amount, deductible: amount }),
+      z.object({ targetId: text, itemId: text, amount, deductible: amount, excludedItemIds: z.array(text.min(1)).max(100).optional() }),
     )
     .max(100),
   card: text,
@@ -596,6 +596,10 @@ export function validateOperations(book: BookData, verifyingId?: string) {
               fail("의료비의 확정 본인 소비 범위에서 보험금을 배분해 주세요.");
             if (a.itemId && !e.items.some((i) => i.id === a.itemId))
               fail("연결한 의료비 상품을 찾을 수 없어요.");
+            const excluded = a.excludedItemIds ?? [];
+            if (a.itemId && excluded.length) fail("기존 상품별 배분은 거래 전체로 변경한 뒤 비해당 항목을 선택해 주세요.");
+            if (new Set(excluded).size !== excluded.length || excluded.some(itemId => !e.items.some(item => item.id === itemId))) fail("비해당 의료비 항목이 중복되었거나 원거래에서 없어졌어요. 다시 선택해 주세요.");
+            if (excluded.length > 0 && excluded.length === e.items.length && money(a.amount, "KRW") > 0) fail("모든 항목을 비해당으로 선택한 의료비에는 보험금을 배분할 수 없어요.");
           }
         }
       }
