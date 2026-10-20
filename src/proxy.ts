@@ -1,6 +1,12 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 
-export default clerkMiddleware();
+const webAuthentication = clerkMiddleware();
+export default function proxy(request: NextRequest, event: NextFetchEvent) {
+  // MCP verifies OAuth bearer tokens itself. Never trigger browser session handshakes here.
+  if (request.nextUrl.pathname === "/api/mcp" || request.nextUrl.pathname.startsWith("/.well-known/")) return NextResponse.next();
+  return webAuthentication(request, event);
+}
 
 export const config = {
   matcher: [

@@ -1,6 +1,6 @@
 # MoneyBook — 시스템의 현재 모습
 
-2026-10-19 기준. 제품 방향은 VISION.md, 협업 규칙은 AGENTS.md를 따른다.
+2026-10-21 기준. 제품 방향은 VISION.md, 협업 규칙은 AGENTS.md를 따른다.
 
 ## 현재 구현
 
@@ -101,6 +101,20 @@
 - 입력 오류·저장 충돌 때 입력을 유지하며 미저장 이동/페이지 종료 경고가 있다. 브라우저 뒤로/앞으로 이동의 모든 상황에서 초안 보존을 보장하지는 않는다.
 
 ## 실행과 검증
+
+### 조회 전용 MCP
+
+- `/api/mcp`는 `mcp-handler` 2와 MCP SDK 2의 stateless HTTP 서버다. 2026-07-28 프로토콜 및 2025 Streamable HTTP 호환을 제공하며 Redis·메모리 세션은 사용하지 않는다. 쓰기 도구·프롬프트·이벤트 구독은 등록하지 않는다.
+- 도구는 `get_book_overview`, `list_expenses`, `list_operations`, `list_assets`, `list_cards`, `list_currencies`, `get_record`, `get_daily_book`, `get_monthly_book`, `get_asset_ledger`, `get_card_activity`, `get_settlements` 12개다. `moneybook://guide` 리소스에 날짜·통화·소비·페이지 해석 규칙을 제공한다. 저장된 상품·할인·메모·교통 여정·정산 배분·명세서 초안·템플릿 내용을 모두 조회할 수 있다. 이전 보관 웹의 장부는 대상이 아니다.
+- 모든 도구에 readOnly/idempotent, non-destructive, closed-world annotation을 지정한다. 목록은 offset/limit(기본 25, 최대 100)과 `nextOffset`을 사용하고 약 600 KB에서 페이지를 나눈다. 단일 기록은 자르지 않는다. `get_record`의 offset/limit은 지출의 연결 금융 기록 목록에만 적용한다. 동시 수정 중 offset 페이지는 변할 수 있어 일관된 시점의 전체 export를 보장하지 않는다.
+- `get_daily_book`은 웹과 같은 소비 계산·05시 경계를 사용하며 수입과 이동 기준 행도 종류별로 반환한다. `get_monthly_book`은 기간 배분·취소·보험·혼합 분류를 반영한다. 소비 조회의 파생 지출 금액과 실제 결제 원본을 구분해야 한다. 원본은 `list_expenses`/`get_record`로 확인한다. 잔액·원장·카드 승인은 기존 웹 계산 함수를 공유하고, 원장은 기간 필터와 페이지를 적용하기 전에 전후 잔액을 계산한다.
+- 기존 전용 Clerk OAuth 앱을 재사용한다. 매 요청 `clerkClient().idPOAuthAccessToken.verify()`로 온라인 검증한 후 만료·취소·전용 client ID·정확한 resource audience·`profile` scope를 검사한다. `offline_access`는 refresh를 위한 discovery scope다. 웹 세션 쿠키·공유 secret·기존 owner 환경변수로 인증하거나 소유자를 대신하지 않는다. 웹과 마찬가지로 검증된 token subject의 계정별 장부만 조회한다.
+- 서버 환경변수는 기존 `MCP_RESOURCE_URL`, `CLERK_AUTHORIZATION_SERVER`, `CLERK_OAUTH_CLIENT_ID`와 앱의 `CLERK_SECRET_KEY`, `DATABASE_URL`이다. OAuth 설정 누락은 503, 인증 실패는 401 challenge, scope 부족은 403이다. MCP 응답은 private/no-store다. 웹 API의 기존 세션 인증·Origin 차단은 유지하고 MCP·공개 metadata만 웹 세션 handshake를 우회한다.
+- DB 접근은 `createNeonBookReader`의 단일 SELECT 스냅샷이며 저장 메서드를 전달하지 않는다. 조회는 빈 계정의 DB 행도 생성하지 않는다. DB 오류·연결 문자열·토큰은 응답에 포함하지 않는다.
+- 공개 discovery는 `/.well-known/oauth-protected-resource/api/mcp`와 호환 루트 `/.well-known/oauth-protected-resource`다. `/.well-known/oauth-authorization-server`는 Clerk의 실제 issuer/endpoints를 보존해 전달한다. 새로운 OAuth 앱이나 전역 Clerk 설정은 만들거나 변경하지 않았다.
+- 운영 연결 주소는 `https://moneybook.spiritflag.work/api/mcp`, issuer는 `https://clerk.spiritflag.work`다. 기존 등록 기록의 public client ID는 `k5NUVpz7J8hKojGn`, ChatGPT callback은 `https://chatgpt.com/connector_platform_oauth_redirect`다. 실제 client 허용 여부는 Clerk 설정이 정본이다. public PKCE 클라이언트라 client secret 입력 없이 연결한다.
+- `mcp.test.ts`는 공식 SDK의 discovery·호출·resource 조회, 2025 프로토콜 호환, 인증/권한 거절, 계정 격리, 입력 검증, 페이지, 소비 계산과 원장 잔액을 가상 데이터로 검증한다. `test:db`는 기존 전용 검증 브랜치에서 SELECT 전용 reader의 계정 격리 및 조회 전후 revision/payload 보존을 추가 검증한다. 실제 운영 계정의 OAuth consent와 인증된 원격 조회는 별도 실제 연결 검증이 필요하다.
+- 구현 검증: 전체 단위 테스트 86개·Neon 통합 테스트·타입 검사·ESLint·프로덕션 빌드 통과. 빌드 실행본에서 metadata 3경로 200, 무인증/잘못된 token의 MCP 요청 401 및 private/no-store challenge, 기존 웹 API 3종의 무인증 401을 확인했다.
 
 npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 일치하도록 dev/start의 hostname을 localhost로 통일했다. 이전 보관 웹 4318과 별개다. 개발 서버와 빌드를 동시에 시작하면 생성 타입 파일이 충돌할 수 있다. 최종 브라우저 검증 및 현재 실행은 npm run build 후 npm start를 사용했다. 이전 인증 작업의 개발 모드 반복 새로고침 원인은 미해결이며 이번 DB 연결의 프로덕션 빌드 실행에서는 발생하지 않았다.
 

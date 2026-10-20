@@ -8,7 +8,7 @@ class WriteConflict extends Error {}
 // 같은 서버에 동시에 도착한 조회만 합칩니다. 완료된 데이터는 서버에 캐시하지 않습니다.
 const reads = new Map<string, Promise<Snapshot>>();
 
-export function createNeonRepository(userId: string, connectionString: string) {
+function neonBookSource(userId: string, connectionString: string) {
   if (!userId) throw new RepositoryError("로그인이 필요해요.", 401);
   if (!connectionString) throw new RepositoryError("DB 연결 설정이 필요해요.", 503);
   const sql = neon(connectionString);
@@ -29,6 +29,16 @@ export function createNeonRepository(userId: string, connectionString: string) {
     }
     return structuredClone((await pending).book);
   }
+  return { sql, key, readSnapshot, read };
+}
+
+// MCP receives only this SELECT reader, with no mutation interface.
+export function createNeonBookReader(userId: string, connectionString: string) {
+  return neonBookSource(userId, connectionString).read;
+}
+
+export function createNeonRepository(userId: string, connectionString: string) {
+  const { sql, key, readSnapshot, read } = neonBookSource(userId, connectionString);
   const storage: BookStorage = {
     read,
     async transact<T>(operation: (book: Book, persist: PersistBook) => Promise<T>): Promise<T> {
