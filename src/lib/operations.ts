@@ -12,7 +12,7 @@ import {
 } from "./expense";
 import { signedMinor, rateUnits, type Asset } from "./asset";
 import { parseDateQuery } from "./date";
-import { transitLegSchema, transitFundingSchema, transitEvents, transitFare, transitTotals, transitRoute, validateTransitLegs, validTransitTime, transitSeconds } from "./transit";
+import { transitLegSchema, transitFundingSchema, transitEvents, transitFare, transitTotals, transitRoute, validateTransitLegs, validTransitTime } from "./transit";
 
 export const incomeCategories = {
   employment: { label: "근로소득", image: "/characters/income_employment.png" },
@@ -372,8 +372,8 @@ export function operationPostings(
       });
     if (op.kind === "transit" && op.transitFunding) {
       const funding = op.transitFunding;
-      add(funding.fromId, funding.amount, -1, funding.date, funding.time, "funding-out", `${op.title} · 사용 전 충전 출금`, -2);
-      add(op.assetId, funding.amount, 1, funding.date, funding.time, "funding-in", `${op.title} · 사용 전 충전 입금`, -2);
+      add(funding.fromId, funding.amount, -1, funding.date, funding.time, "funding-out", `${op.title} · 교통카드 충전 출금`, -2);
+      add(op.assetId, funding.amount, 1, funding.date, funding.time, "funding-in", `${op.title} · 교통카드 충전 입금`, -2);
     }
     if (op.kind === "transit")
       op.rows.forEach((r, i) =>
@@ -619,7 +619,6 @@ export function validateOperations(book: BookData, verifyingId?: string) {
           asset(f.fromId, "KRW");
           if (f.fromId === op.assetId || money(f.amount, "KRW") <= 0) fail("충전 출발 자산과 금액을 확인해 주세요.");
           if (parseDateQuery(f.date) === null || !validTransitTime(f.time)) fail("충전 날짜·시각을 확인해 주세요.");
-          if (f.date > op.date || (f.date === op.date && f.time !== null && op.rows[0]?.time !== null && op.rows[0]?.time && transitSeconds(f.time) > transitSeconds(op.rows[0].time))) fail("사용 전 충전은 첫 승차보다 늦을 수 없어요.");
         }
       }
       let sum = 0;

@@ -84,7 +84,7 @@ test("교통과 사용 전 충전은 원자 저장하고 소비·원장·수정�
   assert.equal(daySummary(daily, date).total, 3050);
   assert.equal(monthAmount(daily[0], "2026-10"), 3050);
   assert.equal(consumptionRecords([], read().operations).length, 1);
-  await assert.rejects(repo.saveOperation({ ...input, transitFunding: { ...input.transitFunding!, time: "10:00:00" } }, saved.id, saved.revision), /첫 승차/);
+  await assert.rejects(repo.saveOperation({ ...input, transitFunding: { ...input.transitFunding!, time: "25:00:00" } }, saved.id, saved.revision), /날짜·시각/);
   assert.equal((await repo.listOperations())[0].revision, 1);
   await assert.rejects(repo.saveOperation({ ...input, transitFunding: { ...input.transitFunding!, fromId: "transit" } }, saved.id, saved.revision), /출발 자산/);
   const updated = structuredClone(input);
@@ -99,6 +99,32 @@ test("교통과 사용 전 충전은 원자 저장하고 소비·원장·수정�
   postings = operationPostings(read().operations, read().assets);
   assert.equal(assetPosition(read().assets[0], [], date, postings).balance, 30000);
 });
+test("첫 승차 이후·구간 사이 충전도 실제 시각으로 저장하고 수정·재시도에 중복 반영하지 않는다", async () => {
+  const { repo, read } = fixture();
+  await repo.saveAsset({ ...newAsset(date), name: "은행", openingBalance: "30000" }, "bank", null);
+  await repo.saveAsset({ ...newAsset(date), name: "교통", kind: "stored", openingBalance: "1000" }, "transit", null);
+  const input: OperationInput = { ...newOperation("transit", date), title: "환승 중 충전", assetId: "transit", journey: journey(), transitFunding: { fromId: "bank", amount: "10000", date, time: "09:45:00" } };
+  await repo.saveOperation(input, "trip", null);
+  await repo.saveOperation(input, "trip", null);
+  let saved = (await repo.listOperations())[0];
+  assert.equal(saved.transitFunding?.time, "09:45:00");
+  let postings = operationPostings(read().operations, read().assets);
+  const rows = assetLedger(read().assets[1], [], postings);
+  assert.equal(rows[0].entry.time, "09:00:10");
+  assert.equal(rows[0].after, -550);
+  assert.equal(rows.find(r => r.amount === 10000)?.entry.time, "09:45:00");
+  assert.equal(assetPosition(read().assets[1], [], date, postings).balance, 7950);
+  assert.equal(daySummary(operationExpenses(read().operations), date).total, 3050);
+  await repo.saveOperation({ ...saved, transitFunding: { ...saved.transitFunding!, date: "2026-10-20", time: null } }, saved.id, saved.revision);
+  saved = (await repo.listOperations())[0];
+  postings = operationPostings(read().operations, read().assets);
+  assert.equal(saved.transitFunding?.date, "2026-10-20");
+  assert.equal(assetPosition(read().assets[0], [], date, postings).balance, 30000);
+  assert.equal(assetPosition(read().assets[1], [], date, postings).balance, -2050);
+  assert.equal(assetPosition(read().assets[1], [], "2026-10-20", postings).balance, 7950);
+  assert.equal(postings.filter(p => p.amount === 10000).length, 1);
+});
+
 test("기존 사건형 교통 기록은 이름·노선·시각·차감액 그대로 수정한다", async () => {
   const { repo } = fixture();
   await repo.saveAsset({ ...newAsset(date), name: "교통", kind: "stored" }, "transit", null);
