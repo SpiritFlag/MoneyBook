@@ -14,7 +14,7 @@ import {
   transferOrderWarning,
   statementRows,
   sharedRemaining,
-  tollRemaining,
+  tollPaymentTargets,
   insuranceRecovered,
   combineInsuranceAllocations,
   type OperationInput,
@@ -420,23 +420,36 @@ export function JourneyEditor({ value, change, book }: EditorProps) {
     </div>
   );
 }
+function TollPaymentEditor({ value, change, book, id }: EditorProps) {
+  const { formatMinor, formatMoney } = useCurrencies();
+  const targets = tollPaymentTargets(book.operations, id);
+  const sum = value.allocations.reduce((total, a) => total + (toMinor(a.amount, "KRW") ?? 0), 0);
+  return <fieldset className="space-y-3">
+    <legend className="mb-2 text-lg font-semibold">출금된 하이패스 이용 선택</legend>
+    <p className="text-sm leading-6 text-muted-foreground">미정산 건만 표시해요. 출금된 건을 체크하면 금액과 출금 합계가 자동으로 반영돼요.</p>
+    {targets.length ? targets.map(target => {
+      const selected = value.allocations.find(a => a.targetId === target.id);
+      return <label key={target.id} className="flex cursor-pointer items-start gap-3 rounded-2xl bg-background/70 p-4 has-[:checked]:bg-secondary/60">
+        <input type="checkbox" className="mt-1 shrink-0" checked={!!selected} onChange={event => {
+          const allocations = event.target.checked
+            ? [...value.allocations.filter(a => a.targetId !== target.id), { targetId: target.id, itemId: "", amount: String(target.remaining), deductible: "0" }]
+            : value.allocations.filter(a => a.targetId !== target.id);
+          change({ ...value, allocations, amount: String(allocations.reduce((total, a) => total + (toMinor(a.amount, "KRW") ?? 0), 0)) });
+        }} />
+        <span className="min-w-0 flex-1 break-words text-sm leading-6">{target.title}</span>
+        <span className="shrink-0 text-right text-sm font-semibold tabular-nums">{selected ? formatMoney(selected.amount, "KRW") : formatMinor(target.remaining, "KRW")}</span>
+      </label>;
+    }) : <p className="rounded-2xl bg-background/70 p-5 text-sm text-muted-foreground">정산할 하이패스 이용이 없어요.</p>}
+    <p aria-live="polite" className="rounded-xl bg-secondary/50 p-4 text-sm font-medium">선택 {value.allocations.length}건 · 출금 합계 {formatMinor(sum, "KRW")}</p>
+  </fieldset>;
+}
+
 export function AllocationEditor({ value, change, book, id }: EditorProps) {
   const { currencyInfo, formatMinor } = useCurrencies();
-  const insurance = value.kind === "insurance",
-    toll = value.kind === "toll-payment";
+  if (value.kind === "toll-payment") return <TollPaymentEditor value={value} change={change} book={book} id={id} />;
+  const insurance = value.kind === "insurance";
   const combined = insurance ? combineInsuranceAllocations(value.allocations, book.expenses) : value.allocations;
-  const targets = toll
-    ? book.operations
-        .filter((o) => o.kind === "toll")
-        .flatMap((o) =>
-          o.rows.map((r) => ({
-            id: `${o.id}/${r.id}`,
-            title: `${o.title} · ${r.name}`,
-            remaining: tollRemaining(o, r, book.operations, id),
-            currency: "KRW" as const,
-          })),
-        )
-    : book.expenses
+  const targets = book.expenses
         .filter((e) =>
           insurance
             ? e.category === "medical" && ownKrw(e) !== null
@@ -463,9 +476,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
       <p className="text-sm leading-6 text-muted-foreground">
         {insurance
           ? "의료비 거래를 선택하고 보험 비해당 항목만 추가하세요. 귀속액·자기부담금은 보험사 지급명세대로 직접 입력하며 제외 항목으로 자동 계산하지 않아요."
-          : toll
-            ? "실제로 출금된 기관별 항목만 선택하세요. 미출금 기관은 그대로 남아요."
-            : "입금 한 건에 여러 원지출을 연결할 수 있어요. 회수해도 원래 본인 소비는 유지돼요."}
+          : "입금 한 건에 여러 원지출을 연결할 수 있어요. 회수해도 원래 본인 소비는 유지돼요."}
       </p>
       {insurance && combined.length < value.allocations.length ? <div className="rounded-xl bg-secondary/40 p-4"><Button type="button" variant="secondary" size="sm" onClick={() => change({ ...value, allocations: combined })}>상품별 배분을 거래별로 합치기</Button><p className="mt-2 text-xs leading-6 text-muted-foreground">같은 의료비의 귀속액·자기부담금을 합치고, 지정하지 않았던 상품은 비해당으로 표시해요. 저장 전 입력에만 적용해요.</p></div> : null}
       {value.allocations.map((allocation, index) => {

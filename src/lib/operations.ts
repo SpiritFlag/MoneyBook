@@ -256,6 +256,15 @@ export function tollRemaining(
       .reduce((s, a) => s + (toMinor(a.amount, "KRW") ?? 0), 0)
   );
 }
+// 수정 중인 출금은 제외해서 그 출금에 연결된 이용 항목도 다시 선택할 수 있게 한다.
+export function tollPaymentTargets(ops: readonly Operation[], excludeId = "") {
+  return ops.filter(op => op.kind === "toll").flatMap(op => op.rows.map(row => ({
+    id: `${op.id}/${row.id}`,
+    title: `${op.date}${op.time ? ` ${op.time}` : " · 시각 미확인"} · ${op.title} · ${row.name}`,
+    remaining: tollRemaining(op, row, ops, excludeId),
+    currency: "KRW" as const,
+  }))).filter(target => target.remaining > 0);
+}
 export function cardAmount(e: Expense): number | null {
   return e.currency === "KRW"
     ? toMinor(e.paidAmount, "KRW")

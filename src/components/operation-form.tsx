@@ -159,7 +159,7 @@ export function OperationForm({
                   onDate={(date) => change(changeOperationDate(value, date))}
                   onTime={(time) => change({ ...value, time })}
                 />}
-                {kind === "transit" && value.journey !== undefined ? <p className="self-end pb-3 text-sm font-semibold">교통비 합계 {formatMoney(value.amount, "KRW")} · 운임에서 자동 계산</p> : kind !== "transfer" ? (
+                {kind === "transit" && value.journey !== undefined ? <p className="self-end pb-3 text-sm font-semibold">교통비 합계 {formatMoney(value.amount, "KRW")} · 운임에서 자동 계산</p> : kind === "toll-payment" ? <p className="self-end pb-3 text-sm font-semibold" aria-live="polite">출금 합계 {formatMoney(value.amount, "KRW")} · 체크한 이용에서 자동 계산</p> : kind !== "transfer" ? (
                   <MoneyField
                     label={
                       kind === "statement"

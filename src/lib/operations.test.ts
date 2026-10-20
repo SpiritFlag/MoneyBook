@@ -24,6 +24,7 @@ import {
   netConsumption,
   sharedRemaining,
   tollRemaining,
+  tollPaymentTargets,
   operationExpenses,
   statementRows,
   type Operation,
@@ -601,4 +602,22 @@ test("검산 뒤 늦게 들어온 승인·원화 확정은 과거 명세서를 �
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+
+test("하이패스 출금 선택지는 이용 날짜·시각을 표시하고 미정산 기관만 남긴다", () => {
+  const toll = op("toll", { title: "같은 경로", date: "2026-10-17", time: "21:16:30", rows: [
+    { ...newRow(date, "paid"), name: "완납 기관", amount: "3000" },
+    { ...newRow(date, "partial"), name: "일부 출금 기관", amount: "2000" },
+    { ...newRow(date, "pending"), name: "미출금 기관", amount: "1000" },
+    { ...newRow(date, "free"), name: "0원 기관", amount: "0" },
+  ] });
+  const paid = op("toll-payment", { allocations: [allocation("toll/paid", "3000"), allocation("toll/partial", "500")] });
+  const unknown = { ...op("toll", { title: "같은 경로", date: "2026-10-18", time: null, rows: [{ ...newRow(date, "pending"), name: "미출금 기관", amount: "1000" }] }), id: "unknown" };
+  const ops = [toll, paid, unknown];
+  const targets = tollPaymentTargets(ops);
+  assert.deepEqual(targets.map(t => [t.id, t.remaining]), [["toll/partial", 1500], ["toll/pending", 1000], ["unknown/pending", 1000]]);
+  assert.equal(targets[0].title, "2026-10-17 21:16:30 · 같은 경로 · 일부 출금 기관");
+  assert.equal(targets[2].title, "2026-10-18 · 시각 미확인 · 같은 경로 · 미출금 기관");
+  assert.deepEqual(tollPaymentTargets(ops, paid.id).map(t => [t.id, t.remaining]), [["toll/paid", 3000], ["toll/partial", 2000], ["toll/pending", 1000], ["unknown/pending", 1000]]);
 });
