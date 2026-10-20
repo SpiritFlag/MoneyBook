@@ -43,12 +43,14 @@ export function OperationForm({
   book,
   existing,
   source = "",
+  initialStatement,
 }: {
   kind: OperationKind;
   date: string;
   book: BookData;
   existing?: Operation;
   source?: string;
+  initialStatement?: { card: string; start: string | null; end: string | null };
 }) {
   const { mutate } = useSWRConfig();
   const currencyDefinitions = useCurrencies();
@@ -57,6 +59,11 @@ export function OperationForm({
   const [value, setValue] = useState<OperationInput>(() => {
     if (existing) return structuredClone(existing);
     const next = newOperation(kind, date);
+    if (kind === "statement" && initialStatement) {
+      next.card = initialStatement.card;
+      if (initialStatement.start) next.start = initialStatement.start;
+      if (initialStatement.end) next.end = initialStatement.end;
+    }
     if (kind === "transit") { next.journey = [newTransitLeg("first")]; next.assetId = defaultTransitAsset(book.assets, book.operations); }
     if (["transfer", "transit", "toll"].includes(kind))
       next.rows = [newRow(date, "first")];
