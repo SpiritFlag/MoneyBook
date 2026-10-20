@@ -120,10 +120,10 @@ test("이용 시각으로 정렬하고 미확인은 마지막, 결제일만 일�
   assert.deepEqual(dailyExpenses(tied, "2026-10-18").map((e) => e.id), ["a", "b"]);
 });
 
-test("기존 지출 카테고리 23종의 아이콘과 저장 스키마를 모두 지원한다", () => {
-  assert.equal(Object.keys(categories).length, 23);
+test("기존 23종과 혼합 카테고리의 아이콘과 저장 스키마를 모두 지원한다", () => {
+  assert.equal(Object.keys(categories).length, 24);
   for (const [category, config] of Object.entries(categories)) {
-    assert.equal(expenseInputSchema.safeParse({ ...seedExpenses[0], category }).success, true, category);
+    assert.equal(expenseInputSchema.safeParse({ ...seedExpenses[0], category, items: category === "mixed" ? seedExpenses[0].items.map(item => ({ ...item, category: "food" })) : seedExpenses[0].items }).success, true, category);
     assert.ok(existsSync(path.join(process.cwd(), "public", config.image)), category);
   }
 });

@@ -9,7 +9,7 @@ import { ExpenseForm } from "./expense-form";
 import { ExpenseReceipt } from "./expense-receipt";
 import { useBook } from "@/lib/use-operations";
 import { netConsumption, cancelled, sharedRemaining, insuranceRecovered, operationLabels } from "@/lib/operations";
-import { categories, ownMinor } from "@/lib/expense";
+import { dominantCategory, categories, ownMinor } from "@/lib/expense";
 import { bookDate, parseDateQuery } from "@/lib/date";
 
 export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }) {
@@ -20,7 +20,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
   const item = book.expenses.find(entry => entry.id === id);
   if (!item) return <div className="book-sheet rounded-3xl bg-card p-10"><h1 className="text-xl font-bold">거래를 찾을 수 없어요</h1><Link className="mt-5 block text-primary" href="/">일일 내역으로</Link></div>;
   if (edit) return <ExpenseForm key={id} date={item.useDate} existing={item} />;
-  const category = categories[item.category];
+  const category = { ...categories[dominantCategory(item)], label: categories[item.category].label };
   const back = parseDateQuery(query.get("from")) ?? (item.useKind === "period" ? item.paymentDate : item.useDate);
   const krw = netConsumption(item, book.operations);
   const isCancelled = cancelled(id, book.operations);

@@ -6,8 +6,9 @@ import { SortableReceiptItem } from "./sortable-receipt-item";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/form-fields";
+import { MixedCategorySummary } from "./mixed-category-summary";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { toMinor, type Currency, type ExpenseInput } from "@/lib/expense";
+import { categories, type ItemCategory, toMinor, type Currency, type ExpenseInput } from "@/lib/expense";
 
 export function ReceiptEditor({ value, onChange, disabled = false }: { value: ExpenseInput; onChange: (value: ExpenseInput) => void; disabled?: boolean }) {
   const currencyDefinitions = useCurrencies();
@@ -21,6 +22,7 @@ export function ReceiptEditor({ value, onChange, disabled = false }: { value: Ex
       <Field label="명세 통화·재화"><select className="form-control" value={value.receiptCurrency} onChange={(e) => onChange({ ...value, receiptCurrency: e.target.value as Currency })}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
       {value.currency !== value.receiptCurrency ? <Field label="명세 대조 총액" hint="모르면 비워 두세요. 서로 다른 통화끼리 빼지 않아요."><input className="form-control" inputMode="decimal" placeholder="미확인" value={value.receiptTotal ?? ""} onChange={(e) => onChange({ ...value, receiptTotal: e.target.value || null })} /></Field> : null}
     </div>
+    {value.category === "mixed" ? <p className="rounded-xl bg-secondary/50 p-4 text-sm leading-6">상품마다 카테고리를 선택해 주세요. 정확한 분류를 위해 명세 합계를 맞춘 뒤 저장해요. 전체 할인·가산과 본인 부담액은 상품 소계 비율로 나눠요.</p> : null}
     {value.items.length === 0 ? <p className="rounded-xl bg-background/70 px-4 py-6 text-center text-sm leading-6 text-muted-foreground">명세 없이도 저장할 수 있어요.<br />확인한 상품이 있다면 아래에서 추가해 주세요.</p> : null}
     {value.items.length > 1 ? <p className="text-xs text-muted-foreground">상품의 ⠿ 손잡이를 잡고 위아래로 끌어 순서를 바꿔보세요.</p> : null}
     <DragDropProvider onDragEnd={event => {
@@ -31,6 +33,7 @@ export function ReceiptEditor({ value, onChange, disabled = false }: { value: Ex
     <div className="space-y-5">
       {value.items.map((item, index) => <SortableReceiptItem key={item.id} id={item.id} index={index} name={item.name} disabled={disabled || value.items.length < 2}>
         <div className="flex items-end gap-2"><Field label={`상품 ${index + 1}`} className="flex-1"><input lang="ko" inputMode="text" className="form-control" placeholder="상품명" maxLength={120} value={item.name} onChange={(e) => updateItem(index, { name: e.target.value })} /></Field><Button variant="ghost" size="icon" type="button" aria-label={`상품 ${index + 1} 삭제`} onClick={() => onChange({ ...value, items: value.items.filter((_, i) => i !== index) })}><Trash2 size={16} /></Button></div>
+        {value.category === "mixed" ? <Field label={`상품 ${index + 1} 카테고리`}><select className="form-control" value={item.category ?? ""} onChange={e => updateItem(index, { category: e.target.value ? e.target.value as ItemCategory : undefined })}><option value="">카테고리 선택</option>{Object.entries(categories).filter(([key]) => key !== "mixed").map(([key, category]) => <option key={key} value={key}>{category.label}</option>)}</select></Field> : null}
         <div className="grid grid-cols-[1fr_5rem] gap-3 sm:grid-cols-[1fr_6rem_1fr]">
           <Field label={`상품 ${index + 1} 단가`}><input className="form-control" inputMode="decimal" placeholder="0" value={item.unitPrice} onChange={(e) => updateItem(index, { unitPrice: e.target.value })} /></Field>
           <Field label={`상품 ${index + 1} 수량`}><input className="form-control" type="number" min={1} max={100000} value={item.quantity || ""} onChange={(e) => updateItem(index, { quantity: Number(e.target.value) })} /></Field>
@@ -52,6 +55,7 @@ export function ReceiptEditor({ value, onChange, disabled = false }: { value: Ex
       <Button type="button" variant="ghost" size="icon-sm" aria-label={`전체 조정 ${index + 1} 삭제`} onClick={() => onChange({ ...value, adjustments: value.adjustments.filter((_, i) => i !== index) })}><Trash2 size={14} /></Button>
     </div>)}</div> : null}
     <div className="flex flex-wrap gap-2">{(["discount", "surcharge"] as const).map((kind) => <Button key={kind} type="button" variant="ghost" size="sm" onClick={() => onChange({ ...value, adjustments: [...value.adjustments, { id: crypto.randomUUID(), kind, name: "", amount: "" }] })}><Plus size={14} />전체 {kind === "discount" ? "할인" : "가산"} 추가</Button>)}</div>
+    <MixedCategorySummary expense={value} />
     <ReceiptSummary expense={value} />
   </div>;
 }

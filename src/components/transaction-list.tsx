@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { incomeCategories, netConsumption, cancelled, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
-import { categories, dailyExpensePresentation, ownMinor, type Expense } from "@/lib/expense";
+import { dominantCategory, categories, dailyExpensePresentation, ownMinor, type Expense } from "@/lib/expense";
 
 function stamp(date: string, time: string | null) {
   return `${date.replaceAll("-", ".")}${time ? ` ${time}` : ""}`;
@@ -31,7 +31,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
         return <li key={income.id} className="px-2 sm:px-3"><Link href={`/records/${income.id}?from=${date}`} aria-label={`${income.title} 상세 보기`} className="transaction-link group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20"><Image src={category.image} alt="" width={80} height={80} className="h-16 w-16 object-contain sm:h-20 sm:w-20" /></div><div className="min-w-0 flex-1"><p className="mb-1 text-xs text-muted-foreground">{category.label} · 입금 {income.date} {income.time ?? "시각 미확인"}</p><h3 className="text-sm font-semibold sm:text-base">{income.title}</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">{assets.find(a => a.id === income.assetId)?.name ?? "입금 자산"}</p></div><p className="shrink-0 text-right text-base font-semibold text-primary tabular-nums sm:text-lg">+{formatMoney(income.amount, income.currency)}</p><ChevronRight aria-hidden="true" size={16} className="hidden shrink-0 text-primary/35 transition-colors group-hover:text-primary sm:block" /></Link></li>;
       }
       const transaction = row.expense;
-      const category = categories[transaction.category];
+      const category = { ...categories[dominantCategory(transaction)], label: categories[transaction.category].label };
       const shared = transaction.shared;
       const won = netConsumption(transaction, operations);
       const display = dailyExpensePresentation(transaction, date);

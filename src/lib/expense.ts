@@ -27,8 +27,11 @@ export const categories = {
   secret: { label: "비밀", image: "/characters/expense_secret.png" },
   study: { label: "공부", image: "/characters/expense_study.png" },
   other: { label: "기타", image: "/characters/expense_other.png" },
+  mixed: { label: "혼합", image: "/characters/expense_other.png" },
 } as const;
 export type Category = keyof typeof categories;
+export type ItemCategory = Exclude<Category, "mixed">;
+const itemCategorySchema = z.enum(Object.keys(categories).filter(key => key !== "mixed") as [ItemCategory, ...ItemCategory[]]);
 
 // 금액은 문자열로 저장하고 계산할 때만 최소 단위 정수로 바꿉니다.
 // USD 0.10 + 0.20 같은 계산에서 부동소수점 오차를 피합니다.
@@ -85,6 +88,7 @@ const baseExpenseSchema = z.object({
   receiptTotal: moneySchema.nullable(),
   items: z.array(z.object({
     id: z.string().min(1).max(80), name: z.string().trim().min(1, "상품명을 입력해 주세요.").max(120),
+    category: itemCategorySchema.optional(),
     unitPrice: moneySchema, quantity: z.number().int().min(1).max(100_000), discounts: z.array(namedAmount).max(20),
   })).max(100),
   adjustments: z.array(namedAmount.extend({ kind: z.enum(["discount", "surcharge"]) })).max(30),
@@ -114,6 +118,14 @@ export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => 
   });
   value.adjustments.forEach((a, index) => check(a.amount, value.receiptCurrency, ["adjustments", index, "amount"]));
   if (receiptSummary(value).sum < 0) ctx.addIssue({ code: "custom", message: "전체 할인 후 명세 합계는 음수가 될 수 없어요.", path: ["adjustments"] });
+  if (value.category === "mixed") {
+    if (!value.items.length) ctx.addIssue({ code: "custom", message: "혼합 지출은 상품 명세를 추가하고 상품별 카테고리를 선택해 주세요.", path: ["items"] });
+    value.items.forEach((item, index) => {
+      if (!item.category) ctx.addIssue({ code: "custom", message: `상품 ${index + 1}의 카테고리를 선택해 주세요.`, path: ["items", index, "category"] });
+    });
+    if (receiptSummary(value).status !== "matched") ctx.addIssue({ code: "custom", message: "혼합 지출의 정확한 분류를 위해 상품 명세 합계를 결제액(또는 명세 대조 총액)에 맞춰 주세요.", path: ["items"] });
+    if (receiptSummary(value).sum > 0 && categorySubtotals(value).every(row => row.amount === 0)) ctx.addIssue({ code: "custom", message: "혼합 지출은 할인 후 금액이 있는 상품이 필요해요.", path: ["items"] });
+  }
   const ids = [...value.items.map((i) => i.id), ...value.items.flatMap((i) => i.discounts.map((d) => d.id)), ...value.adjustments.map((a) => a.id)];
   if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "명세 행 ID가 중복되었어요.", path: ["items"] });
 });
@@ -133,6 +145,37 @@ export function receiptSummary(value: ExpenseInput) {
   const target = value.currency === currency ? toMinor(value.paidAmount, currency) : value.receiptTotal === null ? null : toMinor(value.receiptTotal, currency);
   const difference = target === null ? null : target - sum;
   return { gross, itemDiscounts, discounts, surcharges, sum, target, difference, status: difference === null ? "pending" : difference > 0 ? "unknown" : difference < 0 ? "over" : "matched" } as const;
+}
+// 상품별 할인 후 카테고리 소계. 같은 소계는 카테고리의 고정 순서로 결정한다.
+export function categorySubtotals(value: ExpenseInput): { category: ItemCategory; amount: number }[] {
+  const sums = new Map<ItemCategory, number>();
+  for (const item of value.items) {
+    const category = item.category ?? "other";
+    const amount = Math.max(0, (toMinor(item.unitPrice, value.receiptCurrency) ?? 0) * item.quantity - item.discounts.reduce((sum, d) => sum + (toMinor(d.amount, value.receiptCurrency) ?? 0), 0));
+    sums.set(category, (sums.get(category) ?? 0) + amount);
+  }
+  return (Object.keys(categories) as Category[]).filter((category): category is ItemCategory => category !== "mixed" && sums.has(category)).map(category => ({ category, amount: sums.get(category)! }));
+}
+export function dominantCategory(value: ExpenseInput): ItemCategory {
+  if (value.category !== "mixed") return value.category;
+  return categorySubtotals(value).reduce<{ category: ItemCategory; amount: number }>((best, row) => row.amount > best.amount ? row : best, { category: "other", amount: -1 }).category;
+}
+// 전체 할인·가산, 내 몫, 원화 환산·월 배분은 상품 소계 비율로 나눈다.
+// BigInt 최대 잔여 방식으로 소수 오차 없이 배분하며 합계를 정확히 보존한다.
+export function categoryAmounts(value: ExpenseInput, total: number | null = ownKrw(value)): { category: Category; amount: number | null }[] {
+  if (value.category !== "mixed") return [{ category: value.category, amount: total }];
+  const weights = categorySubtotals(value);
+  if (!weights.length) return [{ category: "mixed", amount: total }];
+  if (total === null) return weights.map(row => ({ category: row.category, amount: null }));
+  const denominator = weights.reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
+  if (denominator === BigInt(0)) return weights.map((row, index) => ({ category: row.category, amount: index === 0 ? total : 0 }));
+  const shares = weights.map(row => {
+    const numerator = BigInt(total) * BigInt(row.amount);
+    return { category: row.category, amount: Number(numerator / denominator), remainder: numerator % denominator };
+  });
+  const left = total - shares.reduce((sum, row) => sum + row.amount, 0);
+  [...shares].sort((a, b) => a.remainder > b.remainder ? -1 : a.remainder < b.remainder ? 1 : 0).slice(0, left).forEach(row => row.amount++);
+  return shares.map(({ category, amount }) => ({ category, amount }));
 }
 export function ownMinor(value: ExpenseInput): number {
   return toMinor(value.shared ? value.ownAmount ?? "0" : value.paidAmount, value.currency) ?? 0;
