@@ -5,7 +5,7 @@ import { newAsset, assetPosition, assetLedger } from "./asset";
 import { newOperation, newRow, normalizeTransitOperation, operationPostings, operationExpenses, consumptionRecords, type OperationInput } from "./operations";
 import { newTransitLeg, newTransitTap, newTransitVehicle, normalizeTransitTime, transitTotals, validateTransitLegs, type TransitLeg } from "./transit";
 import { bookTimeOrder } from "./date";
-import { dailyExpenses, daySummary, monthAmount } from "./expense";
+import { newExpense, dailyExpenses, daySummary, monthAmount } from "./expense";
 
 const date = "2026-10-19";
 function journey(): TransitLeg[] {
@@ -123,6 +123,27 @@ test("첫 승차 이후·구간 사이 충전도 실제 시각으로 저장하�
   assert.equal(assetPosition(read().assets[1], [], date, postings).balance, -2050);
   assert.equal(assetPosition(read().assets[1], [], "2026-10-20", postings).balance, 7950);
   assert.equal(postings.filter(p => p.amount === 10000).length, 1);
+});
+
+test("거래가 있는 충전 잔액을 교통카드로 분류해도 원장·명세·템플릿과 잔액은 유지한다", async () => {
+  const { repo, read } = fixture();
+  await repo.saveAsset({ ...newAsset(date), name: "교통", kind: "stored", openingBalance: "10000" }, "transit", null);
+  const input = { ...newOperation("transit", date), title: "여정", assetId: "transit", journey: journey() };
+  await repo.saveOperation(input, "trip", null);
+  const expense = { ...newExpense(date), title: "별도 교통비", assetId: "transit", paymentKind: "stored" as const, paymentMethod: "교통", paidAmount: "500" };
+  await repo.save(expense, "fare", null);
+  const savedExpense = (await repo.list())[0];
+  await repo.saveOperation({ ...newOperation("template", date), template: savedExpense }, "template", null);
+  const before = assetPosition(read().assets[0], read().expenses, date, operationPostings(read().operations, read().assets));
+  await repo.saveAsset({ ...read().assets[0], kind: "transport" }, "transit", 1);
+  assert.equal(read().assets[0].kind, "transport");
+  assert.equal(read().expenses[0].paymentKind, "transport");
+  assert.equal(read().expenses[0].revision, 2);
+  assert.equal(read().operations.find(op => op.kind === "template")?.template?.paymentKind, "transport");
+  assert.deepEqual(assetPosition(read().assets[0], read().expenses, date, operationPostings(read().operations, read().assets)), before);
+  await assert.rejects(repo.save(expense, "fare", savedExpense.revision), { status: 400 });
+  const savedTrip = read().operations.find(op => op.id === "trip")!;
+  await repo.saveOperation({ ...savedTrip, memo: "수정" }, savedTrip.id, savedTrip.revision);
 });
 
 test("기존 사건형 교통 기록은 이름·노선·시각·차감액 그대로 수정한다", async () => {

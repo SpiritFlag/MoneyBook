@@ -127,11 +127,16 @@ export function createBookRepository(storage: BookStorage) {
         throw new RepositoryError("이미 저장한 자산이에요. 자산 현황에서 다시 열어 주세요.", 409);
       }
       if (previous && previous.revision !== revision) throw new RepositoryError("다른 화면에서 자산이 바뀌었어요. 최신 내용을 다시 열어 주세요.", 409);
-      if (previous && (previous.currency !== input.currency || previous.kind !== input.kind) && (book.expenses.some((e) => e.assetId === id) || operationPostings(book.operations, book.assets).some((p) => p.assetId === id))) throw new RepositoryError("원장에 거래가 있는 자산의 통화와 종류는 바꿀 수 없어요.", 400);
+      const reclassify = previous && previous.currency === "KRW" && input.currency === "KRW" && ["stored", "transport"].includes(previous.kind) && ["stored", "transport"].includes(input.kind);
+      if (previous && (previous.currency !== input.currency || (previous.kind !== input.kind && !reclassify)) && (book.expenses.some((e) => e.assetId === id) || operationPostings(book.operations, book.assets).some((p) => p.assetId === id))) throw new RepositoryError("원장에 거래가 있는 자산의 통화와 종류는 바꿀 수 없어요.", 400);
       if (book.assets.some((a) => a.id !== id && a.name === input.name)) throw new RepositoryError("같은 이름의 자산이 있어요. 구분할 수 있는 이름을 입력해 주세요.", 400);
       const now = new Date().toISOString();
       const record: Asset = { ...input, id, revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
       if (previous) book.assets[index] = record; else book.assets.push(record);
+      if (previous && reclassify && previous.kind !== input.kind) {
+        for (const expense of book.expenses) if (expense.assetId === id && expense.paymentKind === previous.kind) { expense.paymentKind = input.kind; expense.revision++; expense.updatedAt = now; }
+        for (const operation of book.operations) if (operation.template?.assetId === id && operation.template.paymentKind === previous.kind) { operation.template.paymentKind = input.kind; operation.revision++; operation.updatedAt = now; }
+      }
       await write(book, persist);
       return book.assets;
     });

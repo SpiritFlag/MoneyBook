@@ -638,7 +638,7 @@ export function validateOperations(book: BookData, verifyingId?: string) {
         fail("교통 내역은 원화로, 최소 한 구간 이상 입력해 주세요.");
       if (op.kind === "transit") {
         const a = asset(op.assetId, "KRW");
-        if (a.kind !== "stored") fail("선불교통카드 자산을 선택해 주세요.");
+        if (a.kind !== "transport" && a.kind !== "stored") fail("교통카드 자산을 선택해 주세요.");
         if (op.journey !== undefined) {
           validateTransitLegs(op.journey);
           const projected = normalizeTransitOperation(op);

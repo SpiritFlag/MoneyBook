@@ -2,7 +2,7 @@ import { z } from "zod";
 import { currencyInfo, toMinor, orderAroundReferences, type Currency, type Expense } from "./expense";
 import { parseDateQuery } from "./date";
 
-export const assetKinds = { account: "계좌", cash: "현금", stored: "충전 잔액·재화", receivable: "미수금" } as const;
+export const assetKinds = { account: "계좌", cash: "현금", stored: "충전 잔액·재화", transport: "교통카드", receivable: "미수금" } as const;
 import { currencySchema } from "./currency";
 export function signedMinor(value: string, currency: Currency): number | null {
   const negative = value.startsWith("-");
@@ -27,7 +27,7 @@ export function valueInWon(amount: number, currency: Currency, rate: string | nu
 }
 export const assetInputSchema = z.object({
   name: z.string().trim().min(1, "자산 이름을 입력해 주세요.").max(80),
-  kind: z.enum(["account", "cash", "stored", "receivable"]),
+  kind: z.enum(["account", "cash", "stored", "transport", "receivable"]),
   currency: currencySchema,
   openingDate: z.string().refine((v) => parseDateQuery(v) !== null, "기준일을 확인해 주세요."),
   openingBalance: z.string().max(19).nullable(),
@@ -35,6 +35,7 @@ export const assetInputSchema = z.object({
   rateDate: z.string().refine((v) => parseDateQuery(v) !== null, "환율 기준일을 확인해 주세요."),
   memo: z.string().max(1000),
 }).superRefine((value, ctx) => {
+  if (value.kind === "transport" && value.currency !== "KRW") ctx.addIssue({ code: "custom", path: ["currency"], message: "교통카드는 원화 자산으로 등록해 주세요." });
   if (value.openingBalance !== null && signedMinor(value.openingBalance, value.currency) === null) ctx.addIssue({ code: "custom", path: ["openingBalance"], message: "기준잔액의 숫자·소수 자릿수·범위를 확인해 주세요." });
   if (value.currency !== "KRW" && value.valuationRate !== null && rateUnits(value.valuationRate) === null) ctx.addIssue({ code: "custom", path: ["valuationRate"], message: "환율은 0 이상, 정수 9자리·소수 8자리까지 입력해 주세요." });
 });

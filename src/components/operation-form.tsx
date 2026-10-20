@@ -32,6 +32,7 @@ import { expenseInputSchema, type Currency } from "@/lib/expense";
 import { saveOperation, operationsKey } from "@/lib/use-operations";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { newTransitLeg } from "@/lib/transit";
+import { defaultTransitAsset } from "@/lib/transit-assets";
 import { normalizeTransitOperation } from "@/lib/operations";
 import { TransitEditor } from "./transit-editor";
 import { formatMoney } from "@/lib/expense";
@@ -56,7 +57,7 @@ export function OperationForm({
   const [value, setValue] = useState<OperationInput>(() => {
     if (existing) return structuredClone(existing);
     const next = newOperation(kind, date);
-    if (kind === "transit") next.journey = [newTransitLeg("first")];
+    if (kind === "transit") { next.journey = [newTransitLeg("first")]; next.assetId = defaultTransitAsset(book.assets, book.operations); }
     if (["transfer", "transit", "toll"].includes(kind))
       next.rows = [newRow(date, "first")];
     if (["recovery", "insurance", "toll-payment"].includes(kind))

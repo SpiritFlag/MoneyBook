@@ -5,6 +5,7 @@ import { TransitJourney } from "./transit-journey";
 import { normalizeTransitOperation, type OperationInput } from "@/lib/operations";
 import { newTransitLeg, newTransitTap, newTransitVehicle, normalizeTransitTime, type TransitTap, type TransitVehicle, type TransitLeg } from "@/lib/transit";
 import { transportOptions } from "@/lib/transit-options";
+import { transitAssets } from "@/lib/transit-assets";
 import type { EditorProps } from "./operation-editors";
 
 function Text({ label, value, change, placeholder }: { label: string; value: string; change: (value: string) => void; placeholder?: string }) {
@@ -37,8 +38,9 @@ export function TransitEditor({ value, change, book }: EditorProps) {
   const commit = (next: OperationInput) => change(normalizeTransitOperation(next));
   const update = (index: number, next: TransitLeg) => commit({ ...value, journey: legs.map((leg, i) => i === index ? next : leg) });
   const funding = value.transitFunding;
+  const cards = transitAssets(book.assets, book.operations);
   return <div className="min-w-0 space-y-6">
-    <div className="grid gap-4 sm:grid-cols-2"><Field label="선불교통카드 자산"><select className="form-control" value={value.assetId} onChange={e => commit({ ...value, assetId: e.target.value })}><option value="">교통카드 선택</option>{book.assets.filter(a => a.currency === "KRW" && a.kind === "stored").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field><Field label="결제일"><input className="form-control" type="date" value={value.transitPaymentDate ?? value.date} onChange={e => commit({ ...value, transitPaymentDate: e.target.value })} /></Field></div>
+    <div className="grid gap-4 sm:grid-cols-2"><Field label="선불교통카드 자산"><select className="form-control" value={value.assetId} onChange={e => commit({ ...value, assetId: e.target.value })}><option value="">교통카드 선택</option>{cards.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field><Field label="결제일"><input className="form-control" type="date" value={value.transitPaymentDate ?? value.date} onChange={e => commit({ ...value, transitPaymentDate: e.target.value })} /></Field></div>
     <p className="text-xs leading-6 text-muted-foreground">교통비는 이용일에 반영해요. 실제 차감은 각 승하차·환승게이트의 날짜·시각으로 기록하고, 모르는 시각은 추정하지 않아요.</p>
     <section className="space-y-4 rounded-2xl bg-background/70 p-4"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!funding} onChange={e => commit({ ...value, transitFunding: e.target.checked ? { fromId: "", amount: "10000", date: value.date, time: null } : null })} />교통카드 자동 충전</label>
       {funding ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="충전 출금 자산"><select className="form-control" value={funding.fromId} onChange={e => commit({ ...value, transitFunding: { ...funding, fromId: e.target.value } })}><option value="">출금 자산 선택</option>{book.assets.filter(a => a.currency === "KRW" && a.id !== value.assetId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field><Fare label="충전 금액 · 원" value={funding.amount} change={amount => commit({ ...value, transitFunding: { ...funding, amount } })} /><Field label="충전일"><input type="date" className="form-control" value={funding.date} onChange={e => commit({ ...value, transitFunding: { ...funding, date: e.target.value } })} /></Field><TransitTime label="충전 시각" value={funding.time} change={time => commit({ ...value, transitFunding: { ...funding, time } })} /></div><p className="text-xs text-muted-foreground">자동 충전된 실제 날짜·시각을 입력하세요. 첫 승차 이후나 구간 사이의 충전도 기록할 수 있어요. 충전 금액은 교통 소비에 더하지 않아요.</p></> : null}

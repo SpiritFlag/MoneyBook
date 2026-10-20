@@ -9,6 +9,8 @@ import { Field, FormSection } from "./form-fields";
 import { DemoNotice } from "./ledger-state";
 import { currencyInfo, formatMinor, type Currency } from "@/lib/expense";
 import { assetKinds, assetInputSchema, newAsset, signedMinor, valueInWon, type Asset, type AssetInput } from "@/lib/asset";
+import { ledgerKey } from "@/lib/use-expenses";
+import { operationsKey } from "@/lib/use-operations";
 import { assetsKey, saveAsset } from "@/lib/use-assets";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
@@ -29,6 +31,7 @@ export function AssetForm({ date, existing, linked = false }: { date: string; ex
   function cancel() { if (!dirty || window.confirm("입력한 내용을 버리고 돌아갈까요?")) router.push(existing ? `/assets/${existing.id}` : "/assets"); }
   const opening = value.openingBalance === null ? null : signedMinor(value.openingBalance, value.currency);
   const fixed = currencyDefinitions.data?.find(c => c.code === value.currency);
+  const canReclassify = existing?.currency === "KRW" && ["stored", "transport"].includes(existing.kind);
   const won = opening === null ? null : valueInWon(opening, value.currency, fixed?.fixedRate ?? value.valuationRate);
   return <>
     <header className="mb-7"><Button variant="ghost" className="mb-3 -ml-3" onClick={cancel}>← 자산으로 돌아가기</Button><h1 className="text-3xl font-bold">{existing ? "자산 정보·환율 수정" : "자산 추가"}</h1><p className="mt-3 text-sm text-muted-foreground">보유한 단위 그대로 기록하고, 원화 가치를 함께 살펴보세요.</p></header>
@@ -38,7 +41,7 @@ export function AssetForm({ date, existing, linked = false }: { date: string; ex
       if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
       submitting.current = true; setBusy(true); setError("");
       if (!requestId.current) requestId.current = crypto.randomUUID();
-      try { await mutate(assetsKey, saveAsset(requestId.current, parsed.data, revision), { populateCache: true, revalidate: false }); setDirty(false); router.push(`/assets/${requestId.current}?saved=1`); }
+      try { await mutate(assetsKey, saveAsset(requestId.current, parsed.data, revision), { populateCache: true, revalidate: false }); if (existing && existing.kind !== parsed.data.kind) await Promise.all([mutate(ledgerKey), mutate(operationsKey)]); setDirty(false); router.push(`/assets/${requestId.current}?saved=1`); }
       catch (cause) { setError(cause instanceof Error ? cause.message : "저장하지 못했어요."); }
       finally { submitting.current = false; setBusy(false); }
     }}>
@@ -47,12 +50,12 @@ export function AssetForm({ date, existing, linked = false }: { date: string; ex
           <FormSection number="01" title="자산의 이름과 단위">
             <Field label="자산 이름"><input lang="ko" inputMode="text" autoFocus className="form-control" maxLength={80} placeholder="예: 생활비 계좌, 달러 지갑" value={value.name} onChange={(e) => field("name", e.target.value)} /></Field>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="자산 종류"><select className="form-control" disabled={linked} value={value.kind} onChange={(e) => field("kind", e.target.value as AssetInput["kind"])}>{Object.entries(assetKinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
-              <Field label="자산 통화·재화"><select className="form-control" disabled={linked} value={value.currency} onChange={(e) => { field("currency", e.target.value as Currency); field("valuationRate", null); }}>{Object.entries(currencies).map(([key, info]) => <option key={key} value={key}>{info.label}</option>)}</select></Field>
+              <Field label="자산 종류"><select className="form-control" disabled={linked && !canReclassify} value={value.kind} onChange={(e) => { field("kind", e.target.value as AssetInput["kind"]); if (e.target.value === "transport") { field("currency", "KRW"); field("valuationRate", null); } }}>{Object.entries(assetKinds).filter(([key]) => !linked || !canReclassify || ["stored", "transport"].includes(key)).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
+              <Field label="자산 통화·재화"><select className="form-control" disabled={linked || value.kind === "transport"} value={value.currency} onChange={(e) => { field("currency", e.target.value as Currency); field("valuationRate", null); }}>{Object.entries(currencies).map(([key, info]) => <option key={key} value={key}>{info.label}</option>)}</select></Field>
             </div>
             <Link className="mt-3 inline-block text-sm text-primary" href="/assets">게임 재화·고정 환율 정의하기 →</Link>
             {value.kind === "receivable" ? <p className="mt-3 text-sm leading-6 text-muted-foreground">돌려받을 돈을 관리해요. 빌려줄 때는 계좌 → 미수금, 돌려받을 때는 미수금 → 계좌로 자산 이동을 기록하세요.</p> : null}
-            {linked ? <p className="mt-3 text-xs text-muted-foreground">거래가 연결되어 있어 종류와 단위는 유지해요.</p> : null}
+            {linked ? <p className="mt-3 text-xs text-muted-foreground">{canReclassify ? "거래와 잔액은 유지하면서 충전 잔액·교통카드 분류를 바꿀 수 있어요." : "거래가 연결되어 있어 종류와 단위는 유지해요."}</p> : null}
           </FormSection>
           <FormSection number="02" title="어디서부터 기록할까요?" description="기준일 시작 시점의 잔액이에요. 기준일 당일을 포함해 이후 결제 내역을 더하고 빼요.">
             <div className="grid gap-4 sm:grid-cols-2"><Field label="잔액 기준일"><input type="date" className="form-control" min="1900-01-01" max="9999-12-31" value={value.openingDate} onChange={(e) => field("openingDate", e.target.value)} /></Field><Field label={`기준잔액 (${currencyInfo(value.currency).unit})`} hint="모르면 비워 두세요. 확인된 0과 구분해요."><input className="form-control" inputMode="decimal" placeholder="잔액 미확인" value={value.openingBalance ?? ""} onChange={(e) => field("openingBalance", e.target.value === "" ? null : e.target.value)} /></Field></div>
