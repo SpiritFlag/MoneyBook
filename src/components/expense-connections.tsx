@@ -47,7 +47,7 @@ export function ExpenseConnections({
         <div className="grid gap-4 rounded-xl bg-background/70 p-4 sm:grid-cols-[1fr_8rem]">
           <Field
             label="시각 미확인 · 순서 기준 거래"
-            hint="시각을 추측하지 않고 이 거래 주변에 표시해요."
+            hint="기준 거래의 시각 부근에 정렬해요. 실제 시각은 미확인으로 유지해요."
           >
             <select
               className="form-control"
@@ -75,8 +75,8 @@ export function ExpenseConnections({
                 })
               }
             >
-              <option value="before">기준 거래 이전</option>
-              <option value="after">기준 거래 다음</option>
+              <option value="before">기준 시각 이전</option>
+              <option value="after">기준 시각 이후</option>
             </select>
           </Field>
         </div>

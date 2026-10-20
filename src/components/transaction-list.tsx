@@ -2,7 +2,7 @@ import { dailyRecords } from "@/lib/daily-records";
 import { type Asset } from "@/lib/asset";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeftRight, BookOpen, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronRight } from "lucide-react";
 import { incomeCategories, netConsumption, cancelled, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
 import { categories, dailyExpensePresentation, formatMoney, formatMinor, ownMinor, type Expense } from "@/lib/expense";
 
@@ -21,11 +21,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
   }
   return <ul className="space-y-1 py-3 sm:py-4">
     {rows.map((row) => {
-      if (row.transfer) {
-        const { operation, row: step, index } = row.transfer;
-        const from = assets.find(a => a.id === step.fromId), to = assets.find(a => a.id === step.toId);
-        return <li key={row.id} className="px-2 sm:px-3"><Link href={`/records/${operation.id}?from=${date}`} aria-label={`${operation.title} 이동 ${index + 1} 상세 보기`} className="transaction-link group flex items-center gap-3 rounded-2xl px-2 py-5 sm:gap-5 sm:px-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center text-primary/70 sm:h-20 sm:w-20"><ArrowLeftRight size={28} aria-hidden="true" /></div><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-semibold sm:text-base">{operation.title}{operation.rows.length > 1 ? ` · ${step.name || `이동 ${index + 1}`}` : ""}</h3><p className="mt-2 text-xs leading-6 text-muted-foreground">{stamp(step.date, step.time)} · 자산 이동</p><p className="mt-1 text-xs text-muted-foreground">{from?.name ?? "카드 승인"} → {to?.name ?? "도착 자산"}</p></div><div className="shrink-0 text-right tabular-nums"><p className="text-base font-semibold sm:text-lg">{formatMoney(step.amount, step.cardId ? "KRW" : from?.currency ?? "KRW")}</p>{to && (step.cardId || from?.currency !== to.currency || step.amount !== step.received) ? <p className="mt-1 text-xs text-muted-foreground">수령 {formatMoney(step.received, to.currency)}</p> : null}</div><ChevronRight aria-hidden="true" size={16} className="hidden shrink-0 text-primary/35 sm:block" /></Link></li>;
-      }
+      if (row.transfer) return null;
       if (row.income) {
         const income = row.income;
         const category = incomeCategories[income.incomeCategory ?? "other"];

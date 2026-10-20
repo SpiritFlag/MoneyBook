@@ -55,7 +55,7 @@ function ledgerEntries(asset: Asset, expenses: readonly Expense[], extra: readon
     const e = source.get(r.id), target = e?.orderReference ? source.get(e.orderReference) : null;
     if (e?.time === null && e.orderReference && !target) {
       const matches = extra.filter(p => p.referenceId === e.orderReference && p.assetId === asset.id && p.date === e.paymentDate);
-      const posting = e.orderSide === "before" ? matches[0] : matches.at(-1);
+      const posting = matches[0];
       return posting?.id ?? null;
     }
     return e?.time === null && target?.assetId === asset.id && target?.paymentDate === e.paymentDate ? e.orderReference : null;

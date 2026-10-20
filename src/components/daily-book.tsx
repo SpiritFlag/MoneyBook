@@ -23,7 +23,7 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
   }
   const { data: book, error, retry } = useBook();
   const data = book ? [...book.expenses, ...operationExpenses(book.operations)] : undefined;
-  const events = (book?.operations ?? []).filter((o) => o.kind !== "transfer" && o.kind !== "income" && o.kind !== "template" && o.kind !== "transit" && o.kind !== "toll" && (o.kind === "statement" ? o.payment && bookDate(o.payment.date, o.payment.time) === date : bookDate(o.date, o.time) === date));
+  const events = (book?.operations ?? []).filter((o) => o.kind !== "income" && o.kind !== "template" && o.kind !== "transit" && o.kind !== "toll" && (o.kind === "transfer" ? o.rows.some(r => bookDate(r.date, r.time) === date) : o.kind === "statement" ? o.payment && bookDate(o.payment.date, o.payment.time) === date : bookDate(o.date, o.time) === date));
   const transactions = dailyExpenses(data ?? [], date);
   const { total, pending } = daySummary(book ? consumptionRecords(book.expenses, book.operations) : [], date);
 

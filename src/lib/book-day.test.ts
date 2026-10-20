@@ -26,12 +26,12 @@ test("시각 없는 지출은 자산 이동 단계·교통을 기준으로 저�
   const refs = dailyOrderReferences(book, book.expenses[0], input.id);
   assert.deepEqual(refs.map(r => r.id), [anchor, "operation:trip"]);
   const records = () => dailyRecords(dailyExpenses([...book.expenses, ...operationExpenses(book.operations)], date), book.operations, date).map(r => r.id);
-  assert.deepEqual(records(), [anchor, "game", "operation:trip"]);
+  assert.deepEqual(records(), ["game", "operation:trip"]);
   let ledger = assetLedger(book.assets.find(a => a.id === "wallet")!, book.expenses, operationPostings(book.operations, book.assets));
   assert.equal(ledger[1].entry.id, "game");
   await repo.save({ ...book.expenses[0], orderReference: "operation:trip" }, input.id, book.expenses[0].revision);
   book.expenses = await repo.list();
-  assert.deepEqual(records(), [anchor, "operation:trip", "game"]);
+  assert.deepEqual(records(), ["operation:trip", "game"]);
   ledger = assetLedger(book.assets.find(a => a.id === "wallet")!, book.expenses, operationPostings(book.operations, book.assets));
   assert.equal(ledger.at(-1)?.entry.id, "game");
   assert.deepEqual(dailyOrderReferences(book, { ...input, useDate: "" }), []);
@@ -40,6 +40,24 @@ test("시각 없는 지출은 자산 이동 단계·교통을 기준으로 저�
   assert.ok(dailyOrderReferences({ ...book, operations: [dawn] }, input).some(r => r.id === anchor));
   dawn.rows[0].time = "05:00";
   assert.ok(!dailyOrderReferences({ ...book, operations: [dawn] }, input).some(r => r.id === anchor));
+});
+
+test("숨겨진 21:16 자산 이동은 시각만 빌려 정렬하고 소비 목록에는 표시하지 않는다", () => {
+  const date = "2026-10-01";
+  const transfer: Operation = { ...newOperation("transfer", date), ...meta, id: "charge", title: "로스트아크 충전", rows: [{ ...newRow(date, "step"), time: "21:16", fromId: "bank", toId: "game", amount: "10000", received: "10000" }] };
+  const before = expense("21:15", date, "21:15"), after = expense("21:17", date, "21:17");
+  const unknown = { ...expense("unknown", date, null), orderReference: "transfer:charge/step" };
+  const values = [before, after, unknown];
+  assert.deepEqual(dailyRecords(dailyExpenses(values, date), [transfer], date).map(r => r.id), ["21:15", "unknown", "21:17"]);
+  assert.equal(unknown.time, null);
+  assert.equal(unknown.useTime, null);
+  assert.equal(daySummary(values, date).total, 3000);
+  const same = expense("21:16", date, "21:16");
+  const earlier = { ...unknown, orderSide: "before" as const };
+  const result = dailyRecords(dailyExpenses([before, same, after, earlier], date), [transfer], date);
+  assert.ok(result.findIndex(r => r.id === "unknown") > result.findIndex(r => r.id === "21:15"));
+  assert.ok(result.findIndex(r => r.id === "unknown") < result.findIndex(r => r.id === "21:17"));
+  assert.ok(!result.some(r => r.transfer));
 });
 test("시각 미확인 소비는 같은 장부일의 기간형 결제와 새벽 거래도 순서 기준으로 고른다", () => {
   const game = expense("game", "2026-10-01", null);
