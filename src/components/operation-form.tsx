@@ -60,7 +60,7 @@ export function OperationForm({
     if (kind === "transit") { next.journey = [newTransitLeg("first")]; next.assetId = defaultTransitAsset(book.assets, book.operations); }
     if (["transfer", "transit", "toll"].includes(kind))
       next.rows = [newRow(date, "first")];
-    if (["recovery", "insurance", "toll-payment"].includes(kind))
+    if (["recovery", "insurance"].includes(kind))
       next.allocations = [
         { targetId: source, itemId: "", amount: "0", deductible: "0" },
       ];
