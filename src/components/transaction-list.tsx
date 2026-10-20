@@ -1,16 +1,19 @@
+"use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { dailyRecords } from "@/lib/daily-records";
 import { type Asset } from "@/lib/asset";
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { incomeCategories, netConsumption, cancelled, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
-import { categories, dailyExpensePresentation, formatMoney, formatMinor, ownMinor, type Expense } from "@/lib/expense";
+import { categories, dailyExpensePresentation, ownMinor, type Expense } from "@/lib/expense";
 
 function stamp(date: string, time: string | null) {
   return `${date.replaceAll("-", ".")}${time ? ` ${time}` : ""}`;
 }
 
 export function TransactionList({ transactions, date, operations = [], assets = [] }: { transactions: readonly Expense[]; date: string; operations?: readonly Operation[]; assets?: readonly Asset[] }) {
+  const { formatMoney, formatMinor } = useCurrencies();
   const rows = dailyRecords(transactions, operations, date);
   if (!rows.length) {
     return <div className="flex flex-col items-center px-6 py-16 text-center">

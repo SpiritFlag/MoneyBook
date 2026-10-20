@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { GameCurrencies } from "./game-currencies";
 import Link from "next/link";
 import { useState } from "react";
@@ -10,10 +11,11 @@ import { useOperations } from "@/lib/use-operations";
 import { operationPostings } from "@/lib/operations";
 import { useExpenses } from "@/lib/use-expenses";
 import { assetKinds, assetPosition } from "@/lib/asset";
-import { currencyInfo, formatMinor } from "@/lib/expense";
+
 import { parseDateQuery } from "@/lib/date";
 
 export function AssetOverview({ today }: { today: string }) {
+  const { currencyInfo, formatMinor } = useCurrencies();
   const assets = useAssets();
   const expenses = useExpenses(); const operations = useOperations();
   const [date, setDate] = useState(today);

@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import Link from "next/link";
 import { parseDateQuery } from "@/lib/date";
 import { useSearchParams } from "next/navigation";
@@ -14,7 +15,7 @@ import {
   statementRows,
   type OperationKind,
 } from "@/lib/operations";
-import { formatMoney, formatMinor } from "@/lib/expense";
+
 import { assetLedger, signedMinor } from "@/lib/asset";
 import { OperationForm } from "./operation-form";
 import { TransitJourney } from "./transit-journey";
@@ -68,6 +69,7 @@ export function FinanceBook({
   section: Section;
   today: string;
 }) {
+  const { formatMoney, formatMinor } = useCurrencies();
   const { data: book, error, retry } = useBook();
   const config = sections[section];
   if (!book || error) return <LedgerState error={error} retry={retry} />;
@@ -252,6 +254,7 @@ export function RecordPage({
   id?: string;
   edit?: boolean;
 }) {
+  const { currencyInfo, formatMoney, formatMinor } = useCurrencies();
   const query = useSearchParams();
   const { data: book, error, retry } = useBook();
   if (!book || error) return <LedgerState error={error} retry={retry} />;
@@ -376,10 +379,10 @@ export function RecordPage({
                         <p className="mt-3 text-sm">
                           {r.debitCardId ? `${book.cards?.find(c => c.id === r.debitCardId)?.name} 체크카드 승인 · ${book.assets.find(a => a.id === r.fromId)?.name}` : r.cardId ? `${book.cards?.find(c => c.id === r.cardId)?.name} 승인` : book.assets.find((a) => a.id === r.fromId)?.name}{" "}
                           {r.amount}{" "}
-                          {r.cardId ? "KRW" : book.assets.find((a) => a.id === r.fromId)?.currency}{" "}
+                          {currencyInfo(r.cardId ? "KRW" : book.assets.find((a) => a.id === r.fromId)?.currency ?? "KRW").unit}{" "}
                           → {book.assets.find((a) => a.id === r.toId)?.name}{" "}
                           {r.received}{" "}
-                          {book.assets.find((a) => a.id === r.toId)?.currency}
+                          {currencyInfo(book.assets.find((a) => a.id === r.toId)?.currency ?? "KRW").unit}
                         </p>
                         {r.baseAmount ? (
                           <p className="mt-2 text-xs text-muted-foreground">

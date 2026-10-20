@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "./ui/button";
@@ -9,9 +10,10 @@ import { useOperations } from "@/lib/use-operations";
 import { operationPostings } from "@/lib/operations";
 import { useExpenses } from "@/lib/use-expenses";
 import { assetKinds, assetPosition, assetLedger, signedMinor } from "@/lib/asset";
-import { currencyInfo, formatMinor } from "@/lib/expense";
+
 
 export function AssetView({ id, today, edit = false }: { id: string; today: string; edit?: boolean }) {
+  const { currencyInfo, formatMinor } = useCurrencies();
   const assets = useAssets(); const expenses = useExpenses(); const operations = useOperations(); const query = useSearchParams();
   const error = assets.error ?? expenses.error ?? operations.error;
   if (!assets.data || !expenses.data || !operations.data || error) return <LedgerState error={error} retry={() => { void assets.mutate(); void expenses.mutate(); void operations.mutate(); }} />;

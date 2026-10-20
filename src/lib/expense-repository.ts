@@ -201,11 +201,11 @@ export function createBookRepository(storage: BookStorage) {
     return enqueue(async (book, persist) => {
       const value = gameCurrencyInputSchema.parse(input);
       const previous = book.gameCurrencies.find(c => c.code === value.code);
-      if (previous && revision === null && previous.fixedRate === value.fixedRate) return book.gameCurrencies;
+      if (previous && revision === null && previous.fixedRate === value.fixedRate && (value.name === undefined || value.name === previous.name) && (value.unit === undefined || value.unit === previous.unit)) return book.gameCurrencies;
       if ((previous?.revision ?? null) !== revision) throw new RepositoryError("재화 정의가 바뀌었어요. 최신 내용을 다시 열어 주세요.", 409);
-      const record = { ...value, revision: (previous?.revision ?? 0) + 1 };
+      const record = { ...previous, ...value, revision: (previous?.revision ?? 0) + 1 };
       book.gameCurrencies = [...book.gameCurrencies.filter(c => c.code !== value.code), record];
-      for (const asset of book.assets) if (asset.currency === value.code) {
+      for (const asset of book.assets) if (asset.currency === value.code && asset.valuationRate !== value.fixedRate) {
         asset.valuationRate = value.fixedRate; asset.revision += 1; asset.updatedAt = new Date().toISOString();
       }
       await write(book, persist);

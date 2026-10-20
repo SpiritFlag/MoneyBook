@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createBookRepository, storedSchema, type Book } from "./expense-repository";
+import { currencyInfo, currencyOptions, gameCurrencyInputSchema } from "./currency";
 import { newAsset, assetPosition } from "./asset";
 import { newExpense, formatMoney, toMinor } from "./expense";
 import { newOperation, newRow, operationPostings, statementRows, consumptionRecords } from "./operations";
@@ -93,4 +94,32 @@ test("지출 안에서 카드로 충전해도 승인과 사용은 원자 저장�
   assert.equal(read().operations.length, 1);
   assert.equal(statementRows({ ...newOperation("statement", date), card: "충전 카드" }, read()).length, 1);
   assert.equal(assetPosition(read().assets[0], read().expenses, date, operationPostings(read().operations, read().assets)).balance, 900);
+});
+
+
+test("게임 재화 명칭과 약어 수정은 기존 연결·잔액·과거 환산액을 보존한다", async () => {
+  for (const code of ["MCASH", "기존 사용자 골드"]) {
+    const { repo, read } = fixture(), other = fixture();
+    await repo.saveGameCurrency({ code, fixedRate: "10" }, null);
+    await repo.saveAsset({ ...newAsset(date), name: "게임 지갑", kind: "stored", currency: code, openingBalance: "100" }, "wallet", null);
+    await repo.save({ ...newExpense(date), title: "재화 사용", paymentMethod: "게임 지갑", paymentKind: "stored", currency: code, receiptCurrency: code, assetId: "wallet", paidAmount: "20" }, "expense", null);
+    const before = structuredClone(read());
+    const definitions = await repo.saveGameCurrency({ code, name: "새 게임 재화", unit: "GC", fixedRate: "10" }, 1);
+    assert.deepEqual(read().assets, before.assets);
+    assert.deepEqual(read().expenses, before.expenses);
+    assert.equal(assetPosition(read().assets[0], read().expenses, date).balance, 80);
+    assert.equal(formatMoney("20", code, definitions), "20 GC");
+    assert.deepEqual(currencyInfo(code, definitions), { label: "새 게임 재화 · GC", unit: "GC", digits: 0 });
+    assert.equal(currencyOptions(definitions)[code].label, "새 게임 재화 · GC");
+    assert.notEqual(currencyInfo(code).unit, "GC");
+    assert.deepEqual(await other.repo.listGameCurrencies(), []);
+    await assert.rejects(repo.saveGameCurrency({ code, name: "오래된 변경", unit: "OLD", fixedRate: "10" }, 1), /바뀌었어요/);
+    const rates = await repo.saveGameCurrency({ code, fixedRate: "12" }, 2);
+    assert.equal(rates[0].name, "새 게임 재화");
+    assert.equal(rates[0].unit, "GC");
+    assert.equal(read().assets[0].valuationRate, "12");
+    assert.equal(read().expenses[0].krwAmount, "200");
+    assert.equal(gameCurrencyInputSchema.safeParse({ code, name: "  ", unit: "GC", fixedRate: "10" }).success, false);
+    assert.equal(gameCurrencyInputSchema.safeParse({ code, name: "재화", unit: " ", fixedRate: "10" }).success, false);
+  }
 });

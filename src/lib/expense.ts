@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { bookDate, bookTimeOrder, parseDateQuery } from "./date";
 
-import { currencyInfo, currencySchema, type Currency } from "./currency";
+import { currencyInfo, currencySchema, type GameCurrency, type Currency } from "./currency";
 export { currencies, currencyInfo, type Currency } from "./currency";
 export const categories = {
   food: { label: "식비", image: "/characters/expense_food.png" },
@@ -43,12 +43,12 @@ export function toMinor(value: string, currency: Currency): number | null {
 export function fromMinor(value: number, currency: Currency): string {
   return (value / 10 ** currencyInfo(currency).digits).toFixed(currencyInfo(currency).digits);
 }
-export function formatMinor(value: number, currency: Currency): string {
-  return `${((value === 0 ? 0 : value) / 10 ** currencyInfo(currency).digits).toLocaleString("ko-KR", { maximumFractionDigits: currencyInfo(currency).digits })}${currency === "KRW" ? "원" : ` ${currencyInfo(currency).unit}`}`;
+export function formatMinor(value: number, currency: Currency, definitions: readonly GameCurrency[] = []): string {
+  return `${((value === 0 ? 0 : value) / 10 ** currencyInfo(currency).digits).toLocaleString("ko-KR", { maximumFractionDigits: currencyInfo(currency).digits })}${currency === "KRW" ? "원" : ` ${currencyInfo(currency, definitions).unit}`}`;
 }
-export function formatMoney(value: string, currency: Currency): string {
+export function formatMoney(value: string, currency: Currency, definitions: readonly GameCurrency[] = []): string {
   const amount = toMinor(value, currency);
-  return amount === null ? "금액 확인 필요" : formatMinor(amount, currency);
+  return amount === null ? "금액 확인 필요" : formatMinor(amount, currency, definitions);
 }
 
 const dateSchema = z.string().refine((value) => parseDateQuery(value) !== null, "실제 있는 날짜를 입력해 주세요.");

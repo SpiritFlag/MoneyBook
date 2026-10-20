@@ -7,7 +7,7 @@ import { useSWRConfig } from "swr";
 import { Button } from "./ui/button";
 import { Field, FormSection } from "./form-fields";
 import { DemoNotice } from "./ledger-state";
-import { currencyInfo, formatMinor, type Currency } from "@/lib/expense";
+import { type Currency } from "@/lib/expense";
 import { assetKinds, assetInputSchema, newAsset, signedMinor, valueInWon, type Asset, type AssetInput } from "@/lib/asset";
 import { ledgerKey } from "@/lib/use-expenses";
 import { operationsKey } from "@/lib/use-operations";
@@ -16,6 +16,7 @@ import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 export function AssetForm({ date, existing, linked = false }: { date: string; existing?: Asset; linked?: boolean }) {
   const currencyDefinitions = useCurrencies();
+  const { currencyInfo, formatMinor } = currencyDefinitions;
   const currencies = currencyDefinitions.options;
   const { mutate } = useSWRConfig();
   const router = useRouter();

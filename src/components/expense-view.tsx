@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -8,10 +9,11 @@ import { ExpenseForm } from "./expense-form";
 import { ExpenseReceipt } from "./expense-receipt";
 import { useBook } from "@/lib/use-operations";
 import { netConsumption, cancelled, sharedRemaining, insuranceRecovered, operationLabels } from "@/lib/operations";
-import { categories, formatMoney, formatMinor, ownMinor } from "@/lib/expense";
+import { categories, ownMinor } from "@/lib/expense";
 import { bookDate, parseDateQuery } from "@/lib/date";
 
 export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }) {
+  const { currencyInfo, formatMoney, formatMinor } = useCurrencies();
   const { data: book, error, retry } = useBook();
   const query = useSearchParams();
   if (!book || error) return <LedgerState error={error} retry={retry} />;
@@ -48,7 +50,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
           <h2 className="text-lg font-medium">{item.assetId ? <Link className="text-primary hover:underline" href={`/assets/${item.assetId}`}>{item.paymentMethod} · 원장 보기 →</Link> : item.paymentMethod}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{item.paymentKind === "card" ? "결제한 신용카드" : item.paymentKind === "debit" ? "결제한 체크카드" : "결제한 자산"}</p>
           {differentUse ? <p className="mt-5 text-sm leading-7"><span className="mr-3 text-muted-foreground">{item.useKind === "period" ? "이용기간" : "이용일"}</span>{item.useDate}{item.useKind === "once" ? item.useTime ? ` · ${item.useTime}` : " · 시각 미확인" : ""}{item.useKind === "period" ? ` ~ ${item.useEnd}` : ""}</p> : null}
-          {item.valuationRate !== null ? <p className="mt-4 text-sm text-muted-foreground">{fixedCurrency ? "재화 고정 환율" : "원화 환산 기준"} · 1 {item.currency} = {item.valuationRate}원{!fixedCurrency && item.valuationSource && !["linked-topup", "manual", "재화 고정 환율"].includes(item.valuationSource) ? <Link className="ml-3 text-primary hover:underline" href={`/records/${item.valuationSource.split("/")[0]}`}>충전 기준 보기 →</Link> : null}</p> : null}
+          {item.valuationRate !== null ? <p className="mt-4 text-sm text-muted-foreground">{fixedCurrency ? "재화 고정 환율" : "원화 환산 기준"} · 1 {currencyInfo(item.currency).unit} = {item.valuationRate}원{!fixedCurrency && item.valuationSource && !["linked-topup", "manual", "재화 고정 환율"].includes(item.valuationSource) ? <Link className="ml-3 text-primary hover:underline" href={`/records/${item.valuationSource.split("/")[0]}`}>충전 기준 보기 →</Link> : null}</p> : null}
           <details className="mt-5 text-xs text-muted-foreground"><summary className="w-fit">소비 반영 기준</summary><p className="mt-3 leading-6">{item.useKind === "period" ? item.allocation === "annual" ? "시작월부터 12개월 배분" : "시작월 정기지출" : `${bookDate(item.useDate, item.useTime)}의 일일 소비 · 05시 기준`}</p>{item.shared ? <p className="mt-2 leading-6">본인 부담액을 소비에 반영하고 전체 결제액은 원장에 기록해요.</p> : null}</details>
         </section>
         {item.memo ? <section className="border-t border-border/70 pt-7"><h2 className="mb-3 text-sm font-medium text-muted-foreground">메모</h2><p className="whitespace-pre-wrap break-words text-sm leading-7">{item.memo}</p></section> : null}

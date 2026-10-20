@@ -7,10 +7,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/form-fields";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { formatMinor, toMinor, type Currency, type ExpenseInput } from "@/lib/expense";
+import { toMinor, type Currency, type ExpenseInput } from "@/lib/expense";
 
 export function ReceiptEditor({ value, onChange, disabled = false }: { value: ExpenseInput; onChange: (value: ExpenseInput) => void; disabled?: boolean }) {
   const currencyDefinitions = useCurrencies();
+  const { formatMinor } = currencyDefinitions;
   const currencies = currencyDefinitions.options;
   function updateItem(index: number, patch: Partial<ExpenseInput["items"][number]>) {
     onChange({ ...value, items: value.items.map((item, i) => i === index ? { ...item, ...patch } : item) });

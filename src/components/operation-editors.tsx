@@ -1,10 +1,11 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { FundingSource } from "./funding-source";
 import { TimeInput } from "./time-input";
 import { InsuranceExclusions } from "./insurance-exclusions";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
-import { currencyInfo, formatMinor } from "@/lib/expense";
+
 import { rateUnits, valueInWon } from "@/lib/asset";
 import {
   newRow,
@@ -41,6 +42,7 @@ export function AssetSelect({
   currency?: string;
   kind?: string;
 }) {
+  const { currencyInfo } = useCurrencies();
   return (
     <Field label={label}>
       <select
@@ -57,7 +59,7 @@ export function AssetSelect({
           )
           .map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name} · {a.currency}
+              {a.name} · {currencyInfo(a.currency).unit}
             </option>
           ))}
       </select>
@@ -116,6 +118,7 @@ export function DateTimeFields({
   );
 }
 export function TransferEditor({ value, change, book }: EditorProps) {
+  const { currencyInfo, formatMinor } = useCurrencies();
   return (
     <div className="space-y-5">
       {transferOrderWarning(value) ? <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">단계 번호와 날짜·시각 순서가 달라요. 자산 원장은 실제 날짜·시각순으로 계산하니 각 단계 날짜를 확인해 주세요.</p> : null}
@@ -173,12 +176,12 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                 book={book}
               />
               <MoneyField
-                label={row.debitCardId !== undefined ? `체크카드 승인액 ${index + 1} · ${from?.currency ?? "출금 단위"}` : row.cardId !== undefined ? `카드 승인액 ${index + 1} · KRW` : `실제 출금액 ${index + 1} · ${from?.currency ?? "출발 단위"}`}
+                label={row.debitCardId !== undefined ? `체크카드 승인액 ${index + 1} · ${from ? currencyInfo(from.currency).unit : "출금 단위"}` : row.cardId !== undefined ? `카드 승인액 ${index + 1} · KRW` : `실제 출금액 ${index + 1} · ${from ? currencyInfo(from.currency).unit : "출발 단위"}`}
                 value={row.amount}
                 onChange={(amount) => patch({ amount })}
               />
               <MoneyField
-                label={`최종 수령량 ${index + 1} · ${to?.currency ?? "도착 단위"}`}
+                label={`최종 수령량 ${index + 1} · ${to ? currencyInfo(to.currency).unit : "도착 단위"}`}
                 value={row.received}
                 onChange={(received) => patch({ received })}
               />
@@ -204,7 +207,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                 />
                 <div />
                 <fieldset className="min-w-0 space-y-3 sm:col-span-2">
-                  <legend className="mb-3 text-sm font-medium">포인트·쿠폰 할인 · {sourceCurrency}</legend>
+                  <legend className="mb-3 text-sm font-medium">포인트·쿠폰 할인 · {currencyInfo(sourceCurrency).unit}</legend>
                   {discounts.map((discount, di) => (
                     <div key={discount.id} className="grid min-w-0 gap-3 rounded-xl bg-background/70 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                       <Field label={`이동 ${index + 1} 할인 ${di + 1} 이름`}>
@@ -212,7 +215,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                           placeholder="예: 삼성전자 포인트"
                           onChange={e => changeDiscounts(discounts.map((d, i) => i === di ? { ...d, name: e.target.value } : d))} />
                       </Field>
-                      <MoneyField label={`이동 ${index + 1} 할인 ${di + 1} 금액 · ${sourceCurrency}`} value={discount.amount}
+                      <MoneyField label={`이동 ${index + 1} 할인 ${di + 1} 금액 · ${currencyInfo(sourceCurrency).unit}`} value={discount.amount}
                         onChange={amount => changeDiscounts(discounts.map((d, i) => i === di ? { ...d, amount } : d))} />
                       <Button type="button" variant="ghost" size="sm" aria-label={`이동 ${index + 1} 할인 ${di + 1} 삭제`}
                         onClick={() => changeDiscounts(discounts.filter((_, i) => i !== di))}>삭제</Button>
@@ -290,6 +293,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
   );
 }
 export function JourneyEditor({ value, change, book }: EditorProps) {
+  const { formatMinor } = useCurrencies();
   const transit = value.kind === "transit";
   const sum = value.rows.reduce(
     (s, r) => s + (toMinor(r.amount, "KRW") ?? 0),
@@ -417,6 +421,7 @@ export function JourneyEditor({ value, change, book }: EditorProps) {
   );
 }
 export function AllocationEditor({ value, change, book, id }: EditorProps) {
+  const { currencyInfo, formatMinor } = useCurrencies();
   const insurance = value.kind === "insurance",
     toll = value.kind === "toll-payment";
   const combined = insurance ? combineInsuranceAllocations(value.allocations, book.expenses) : value.allocations;
@@ -609,6 +614,7 @@ export function PaymentEditor({ value, change, book }: EditorProps) {
   );
 }
 export function StatementEditor({ value, change, book, id }: EditorProps) {
+  const { formatMinor } = useCurrencies();
   const rows = statementRows(value, book, id);
   const sum = rows
     .filter((r) => value.selected.includes(r.id))

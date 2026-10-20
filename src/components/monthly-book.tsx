@@ -1,12 +1,14 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useBook } from "@/lib/use-operations";
 import { consumptionRecords, expenseHref } from "@/lib/operations";
-import { monthAmount, formatMinor, ownMinor, categories } from "@/lib/expense";
+import { monthAmount, ownMinor, categories } from "@/lib/expense";
 import { DemoNotice, LedgerState } from "./ledger-state";
 import { Button } from "./ui/button";
 export function MonthlyBook({ initialMonth }: { initialMonth: string }) {
+  const { formatMinor } = useCurrencies();
   const query = useSearchParams();
   const raw = query.get("month") ?? "";
   const month = /^(19\d{2}|[2-9]\d{3})-(0[1-9]|1[0-2])$/.test(raw) ? raw : initialMonth;

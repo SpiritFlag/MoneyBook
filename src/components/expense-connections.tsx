@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { useBook } from "@/lib/use-operations";
 import { toMinor, type ExpenseInput } from "@/lib/expense";
 import { dailyOrderReferences } from "@/lib/daily-records";
@@ -14,6 +15,7 @@ export function ExpenseConnections({
   change: (v: ExpenseInput) => void;
   id?: string;
 }) {
+  const { currencyInfo } = useCurrencies();
   const { data: book, error, retry } = useBook();
   if (error)
     return (
@@ -119,7 +121,7 @@ export function ExpenseConnections({
       ) : null}
       {!fixedCurrency && value.valuationRate !== null ? (
         <div className="rounded-xl bg-secondary/50 p-4 text-xs leading-6">
-          고정한 평가 환율 · 1 {value.currency} = {value.valuationRate}원. 금액
+          고정한 평가 환율 · 1 {currencyInfo(value.currency).unit} = {value.valuationRate}원. 금액
           변경 시 원화 확정액도 확인하세요.
           <Button
             type="button"

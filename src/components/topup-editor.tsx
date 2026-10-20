@@ -1,4 +1,5 @@
 "use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { FundingSource } from "./funding-source";
 import { TimeInput } from "./time-input";
 import { Field, FormSection } from "./form-fields";
@@ -19,6 +20,7 @@ export function TopupEditor({
   cards: Card[];
   fixedRate?: string;
 }) {
+  const { currencyInfo } = useCurrencies();
   const t = value.topup;
   const patch = (next: Partial<NonNullable<ExpenseInput["topup"]>>) => {
     if (t) change({ ...value, topup: { ...t, ...next } });
@@ -78,7 +80,7 @@ export function TopupEditor({
                 onChange={(e) => patch({ amount: e.target.value })}
               />
             </Field>
-            <Field label={`충전 수령량 · ${value.currency}`}>
+            <Field label={`충전 수령량 · ${currencyInfo(value.currency).unit}`}>
               <input
                 className="form-control"
                 inputMode="decimal"

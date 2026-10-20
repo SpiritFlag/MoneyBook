@@ -1,7 +1,10 @@
-import { formatMoney, formatMinor, toMinor, type ExpenseInput } from "@/lib/expense";
+"use client";
+import { useCurrencies } from "@/lib/use-currencies";
+import { toMinor, type ExpenseInput } from "@/lib/expense";
 import { ReceiptSummary } from "./receipt-summary";
 
 export function ExpenseReceipt({ expense }: { expense: ExpenseInput }) {
+  const { formatMoney, formatMinor } = useCurrencies();
   return <section aria-label="상품과 할인 명세" className="expense-receipt">
     <h2 className="sr-only">상품과 명세</h2>
     {expense.items.length || expense.adjustments.length ? <ul className="receipt-timeline">

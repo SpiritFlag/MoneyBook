@@ -1,7 +1,10 @@
+"use client";
+import { useCurrencies } from "@/lib/use-currencies";
 import { Check, CircleHelp, TriangleAlert } from "lucide-react";
-import { formatMinor, receiptSummary, type ExpenseInput } from "@/lib/expense";
+import { receiptSummary, type ExpenseInput } from "@/lib/expense";
 
 export function ReceiptSummary({ expense, compact = false }: { expense: ExpenseInput; compact?: boolean }) {
+  const { formatMinor } = useCurrencies();
   const result = receiptSummary(expense);
   const matched = result.status === "matched";
   if (compact && matched) return <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-primary/20 pt-4 text-xs text-muted-foreground" aria-live="polite"><span className="inline-flex items-center gap-2"><Check size={14} className="text-primary" />명세 합계 · 총액과 일치해요</span><span className="tabular-nums">{formatMinor(result.sum, expense.receiptCurrency)}</span></div>;

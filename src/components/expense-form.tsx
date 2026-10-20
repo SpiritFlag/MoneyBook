@@ -11,7 +11,7 @@ import { DemoNotice } from "@/components/ledger-state";
 import { Field, FormSection } from "@/components/form-fields";
 import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { changeExpenseDate, changeExpenseTime, followsPaymentDate, followsPaymentTime, categories, expenseInputSchema, formatMoney, formatMinor, newExpense, ownKrw, ownMinor, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
+import { changeExpenseDate, changeExpenseTime, followsPaymentDate, followsPaymentTime, categories, expenseInputSchema, newExpense, ownKrw, ownMinor, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
 import { useCards } from "@/lib/use-cards";
 import Link from "next/link";
 import { useAssets } from "@/lib/use-assets";
@@ -23,6 +23,7 @@ import { ledgerKey, saveExpense } from "@/lib/use-expenses";
 
 export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { date: string; existing?: Expense; initialAsset?: Asset; initialDraft?: ExpenseInput }) {
   const currencyDefinitions = useCurrencies();
+  const { currencyInfo, formatMoney, formatMinor } = currencyDefinitions;
   const currencies = currencyDefinitions.options;
   const { mutate } = useSWRConfig();
   const router = useRouter();
@@ -123,7 +124,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
           <FormSection number="04" title="내가 부담한 금액">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.shared} onChange={(e) => change({ ...value, shared: e.target.checked, ownAmount: e.target.checked ? value.ownAmount ?? (value.paidAmount || "0") : null })} />다른 사람과 비용을 나눴어요</label>
             {value.shared ? <div className="mt-4"><Field label="본인 부담액" hint="결제 전체액은 유지하고 내 몫만 소비로 반영해요."><input className="form-control" inputMode="decimal" value={value.ownAmount ?? ""} onChange={(e) => field("ownAmount", e.target.value)} /></Field></div> : null}
-            {fixedCurrency ? <p className="mt-5 rounded-xl bg-secondary/50 p-4 text-sm">재화 고정 환율 · 1 {value.currency} = {fixedCurrency.fixedRate}원 · 원화 소비는 자동 계산해요.</p> : value.currency !== "KRW" ? <div className="mt-5"><Field label={card ? "확정 원화 청구액 (선택)" : "확정 원화 평가액 (선택)"} hint="실제 결제 전체액의 원화 금액이에요. 모르면 비워 두고 나중에 수정하세요. 임의 환율로 합산하지 않아요."><input className="form-control" inputMode="numeric" value={value.krwAmount ?? ""} placeholder="원화 미확정" onChange={(e) => field("krwAmount", e.target.value || null)} /></Field></div> : null}
+            {fixedCurrency ? <p className="mt-5 rounded-xl bg-secondary/50 p-4 text-sm">재화 고정 환율 · 1 {currencyInfo(value.currency).unit} = {fixedCurrency.fixedRate}원 · 원화 소비는 자동 계산해요.</p> : value.currency !== "KRW" ? <div className="mt-5"><Field label={card ? "확정 원화 청구액 (선택)" : "확정 원화 평가액 (선택)"} hint="실제 결제 전체액의 원화 금액이에요. 모르면 비워 두고 나중에 수정하세요. 임의 환율로 합산하지 않아요."><input className="form-control" inputMode="numeric" value={value.krwAmount ?? ""} placeholder="원화 미확정" onChange={(e) => field("krwAmount", e.target.value || null)} /></Field></div> : null}
           </FormSection>
           <ExpenseConnections value={value} change={change} id={existing?.id} />
           <FormSection number="05" title="메모"><Field label="기억해 둘 내용 (선택)"><textarea lang="ko" inputMode="text" className="form-control min-h-24 resize-y" maxLength={2000} placeholder="영수증에서 확인할 내용이나 거래의 맥락을 남겨보세요." value={value.memo} onChange={(e) => field("memo", e.target.value)} /></Field></FormSection>
