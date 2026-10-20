@@ -71,7 +71,7 @@ const baseExpenseSchema = z.object({
   useDateFollowsPayment: z.boolean().optional(),
   useTimeFollowsPayment: z.boolean().optional(),
   sortOrder: z.number().finite().default(0),
-  orderReference: z.string().max(80).nullable().default(null),
+  orderReference: z.string().max(256).nullable().default(null),
   orderSide: z.enum(["before", "after"]).default("after"),
   valuationRate: z.string().max(20).nullable().default(null),
   valuationSource: z.string().max(160).nullable().default(null),

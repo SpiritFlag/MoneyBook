@@ -9,7 +9,7 @@ import Link from "next/link";
 import { dailyExpenses, daySummary, formatMinor } from "@/lib/expense";
 import { useBook } from "@/lib/use-operations";
 import { consumptionRecords, operationExpenses, operationLabels } from "@/lib/operations";
-import { dailyIncomes } from "@/lib/daily-records";
+import { dailyRecords } from "@/lib/daily-records";
 import { DemoNotice, LedgerState } from "./ledger-state";
 
 export function DailyBook({ initialDate }: { initialDate: string }) {
@@ -23,7 +23,7 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
   }
   const { data: book, error, retry } = useBook();
   const data = book ? [...book.expenses, ...operationExpenses(book.operations)] : undefined;
-  const events = (book?.operations ?? []).filter((o) => o.kind !== "income" && o.kind !== "template" && o.kind !== "transit" && o.kind !== "toll" && (o.kind === "transfer" ? o.rows.some((r) => bookDate(r.date, r.time) === date) : o.kind === "statement" ? o.payment && bookDate(o.payment.date, o.payment.time) === date : bookDate(o.date, o.time) === date));
+  const events = (book?.operations ?? []).filter((o) => o.kind !== "transfer" && o.kind !== "income" && o.kind !== "template" && o.kind !== "transit" && o.kind !== "toll" && (o.kind === "statement" ? o.payment && bookDate(o.payment.date, o.payment.time) === date : bookDate(o.date, o.time) === date));
   const transactions = dailyExpenses(data ?? [], date);
   const { total, pending } = daySummary(book ? consumptionRecords(book.expenses, book.operations) : [], date);
 
@@ -35,7 +35,7 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
     <section aria-label="선택한 날짜의 내역" className="book-sheet rounded-3xl bg-card pb-0.5">
       <div className="daily-summary relative flex flex-wrap items-end justify-between gap-5 rounded-t-3xl px-5 py-7 sm:px-8 sm:py-8">
         <span aria-hidden="true" className="absolute top-0 left-8 h-1 w-10 rounded-b-full bg-primary/45" />
-        <div className="min-w-0"><p className="mb-2 text-[11px] font-medium tracking-[0.16em] text-primary/80">나의 하루</p><DateNavigator date={date} onDateChange={setDate} /><p className="mt-2 text-sm text-muted-foreground">거래 기록 {transactions.length + dailyIncomes(book?.operations ?? [], date).length}건 · 05시부터 다음 날 05시 전까지</p></div>
+        <div className="min-w-0"><p className="mb-2 text-[11px] font-medium tracking-[0.16em] text-primary/80">나의 하루</p><DateNavigator date={date} onDateChange={setDate} /><p className="mt-2 text-sm text-muted-foreground">거래 기록 {dailyRecords(transactions, book?.operations ?? [], date).length}건 · 05시부터 다음 날 05시 전까지</p></div>
         <div className="ml-auto text-right" aria-live="polite" aria-atomic="true"><p className="mb-2 text-xs text-muted-foreground">하루 소비</p><p className="text-3xl font-bold tracking-tight text-primary tabular-nums sm:text-4xl">{data ? formatMinor(total, "KRW") : "—"}</p></div>
       </div>
       {!data ? <LedgerState error={error} retry={retry} /> : <TransactionList transactions={transactions} date={date} operations={book?.operations} assets={book?.assets} />}

@@ -47,12 +47,17 @@ export function newAsset(date: string): AssetInput {
 export function assetTransactions(asset: Asset, expenses: readonly Expense[]) {
   return expenses.filter((entry) => entry.assetId === asset.id).sort((a, b) => a.paymentDate.localeCompare(b.paymentDate) || (a.time ?? "24:00").localeCompare(b.time ?? "24:00") || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
-type ExtraPosting = { id: string; assetId: string; date: string; time: string | null; title: string; amount: number; href: string; order: number };
+type ExtraPosting = { id: string; assetId: string; date: string; time: string | null; title: string; amount: number; href: string; order: number; referenceId?: string };
 function ledgerEntries(asset: Asset, expenses: readonly Expense[], extra: readonly ExtraPosting[]) {
   const rows = [...assetTransactions(asset, expenses).map((entry) => ({ id: entry.id, entry, amount: -(toMinor(entry.paidAmount, asset.currency) ?? 0), href: `/transactions/${entry.id}`, order: entry.sortOrder ?? 0 })), ...extra.filter((p) => p.assetId === asset.id).map((p) => ({ id: p.id, entry: { id: p.id, title: p.title, paymentDate: p.date, time: p.time }, amount: p.amount, href: p.href, order: p.order }))].sort((a, b) => a.entry.paymentDate.localeCompare(b.entry.paymentDate) || (a.entry.time ?? "24:00").localeCompare(b.entry.time ?? "24:00") || a.order - b.order || a.entry.id.localeCompare(b.entry.id));
   const source = new Map(expenses.map((e) => [e.id, e]));
   return orderAroundReferences(rows, (r) => {
     const e = source.get(r.id), target = e?.orderReference ? source.get(e.orderReference) : null;
+    if (e?.time === null && e.orderReference && !target) {
+      const matches = extra.filter(p => p.referenceId === e.orderReference && p.assetId === asset.id && p.date === e.paymentDate);
+      const posting = e.orderSide === "before" ? matches[0] : matches.at(-1);
+      return posting?.id ?? null;
+    }
     return e?.time === null && target?.assetId === asset.id && target?.paymentDate === e.paymentDate ? e.orderReference : null;
   }, (r) => source.get(r.id)?.orderSide ?? "after");
 }

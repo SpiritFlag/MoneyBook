@@ -324,6 +324,7 @@ export function statementRows(
 }
 export type Posting = {
   id: string;
+  referenceId?: string;
   assetId: string;
   date: string;
   time: string | null;
@@ -347,6 +348,7 @@ export function operationPostings(
       suffix = "",
       title = op.title,
       order = op.parentId ? -1 : 0,
+      referenceId = op.id,
     ) => {
       const asset = assets.find((a) => a.id === assetId);
       if (asset)
@@ -359,6 +361,7 @@ export function operationPostings(
           title,
           href: `/records/${op.id}`,
           order,
+          referenceId,
         });
     };
     if (["income", "recovery", "insurance"].includes(op.kind))
@@ -375,6 +378,7 @@ export function operationPostings(
           `${i}-out`,
           `${op.title} · ${r.name || i + 1} 출금`,
           op.parentId ? -1 : i,
+          `transfer:${op.id}/${r.id}`,
         );
         add(
           r.toId,
@@ -385,6 +389,7 @@ export function operationPostings(
           `${i}-in`,
           `${op.title} · ${r.name || i + 1} 입금`,
           op.parentId ? -1 : i,
+          `transfer:${op.id}/${r.id}`,
         );
       });
     if (op.kind === "transit" && op.transitFunding) {
@@ -403,6 +408,7 @@ export function operationPostings(
           String(i),
           `${op.title} · ${r.name}`,
           i,
+          `operation:${op.id}`,
         ),
       );
     if (

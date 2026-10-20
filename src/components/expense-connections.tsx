@@ -1,7 +1,7 @@
 "use client";
 import { useBook } from "@/lib/use-operations";
-import { dayTime, expenseOrderReferences, toMinor, type ExpenseInput } from "@/lib/expense";
-import { bookDate } from "@/lib/date";
+import { toMinor, type ExpenseInput } from "@/lib/expense";
+import { dailyOrderReferences } from "@/lib/daily-records";
 import { valueInWon } from "@/lib/asset";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
@@ -39,7 +39,7 @@ export function ExpenseConnections({
           rate: r.rate,
         })),
     );
-  const reference = expenseOrderReferences(book.expenses, value, id);
+  const reference = dailyOrderReferences(book, value, id);
   const fixedCurrency = book.gameCurrencies?.find(c => c.code === value.currency);
   return (
     <div className="mt-5 space-y-5">
@@ -59,7 +59,7 @@ export function ExpenseConnections({
               <option value="">기본 순서 · 시각 확인 거래 다음</option>
               {reference.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.title} · {e.useKind === "period" ? "기간형 결제 · " : ""}{dayTime(e, bookDate(value.useDate, value.useTime)) ?? "시각 미확인"}
+                  {e.title} · {e.time ?? "시각 미확인"}
                 </option>
               ))}
             </select>
