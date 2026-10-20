@@ -65,12 +65,18 @@ export function createBookRepository(storage: BookStorage) {
         if (won === null) throw new RepositoryError("원화 평가액 범위를 확인해 주세요.", 400);
         input = { ...input, krwAmount: String(won), valuationRate: definition.fixedRate, valuationSource: "재화 고정 환율" };
       }
+      if (input.paymentKind === "debit") {
+        const debit = book.cards.find(c => c.id === input.debitCardId && c.kind === "debit");
+        const account = book.assets.find(a => a.id === debit?.assetId && a.kind === "account");
+        if (!debit || !account || account.currency !== input.currency) throw new RepositoryError("체크카드와 같은 통화의 연결 계좌를 확인해 주세요.", 400);
+        input = { ...input, assetId: account.id, paymentMethod: debit.name };
+      } else if (input.debitCardId) throw new RepositoryError("체크카드 결제 방식을 선택해 주세요.", 400);
       if (input.assetId) {
         const asset = book.assets.find((a) => a.id === input.assetId);
         if (!asset) throw new RepositoryError("선택한 자산을 찾을 수 없어요.", 400);
         if (input.currency !== asset.currency) throw new RepositoryError("결제 통화와 자산의 통화가 같아야 해요.", 400);
-        if (input.paymentKind !== asset.kind) throw new RepositoryError("결제 방식이 자산 종류와 맞지 않아요. 자산을 다시 선택해 주세요.", 400);
-        input = { ...input, paymentMethod: asset.name };
+        if ((input.paymentKind === "debit" ? "account" : input.paymentKind) !== asset.kind) throw new RepositoryError("결제 방식이 자산 종류와 맞지 않아요. 자산을 다시 선택해 주세요.", 400);
+        if (input.paymentKind !== "debit") input = { ...input, paymentMethod: asset.name };
       }
       const expenses = book.expenses;
       const index = expenses.findIndex((e) => e.id === id);
@@ -107,6 +113,7 @@ export function createBookRepository(storage: BookStorage) {
       const index = book.assets.findIndex((a) => a.id === id);
       if (revision !== null && index < 0) throw new RepositoryError("수정할 자산을 찾을 수 없어요.", 404);
       const previous = book.assets[index];
+      if (previous && (previous.kind !== input.kind || previous.currency !== input.currency) && book.cards.some(c => c.assetId === id)) throw new RepositoryError("체크카드가 연결된 계좌의 종류와 통화는 바꿀 수 없어요.", 400);
       if (revision === null && previous) {
         if (JSON.stringify(assetInputSchema.parse(previous)) === JSON.stringify(input)) return book.assets;
         throw new RepositoryError("이미 저장한 자산이에요. 자산 현황에서 다시 열어 주세요.", 409);
@@ -145,9 +152,12 @@ export function createBookRepository(storage: BookStorage) {
     return enqueue(async (book, persist) => {
       const value = cardInputSchema.parse(input);
       const existing = book.cards.find(c => c.id === id);
+      if (value.kind === "debit" && !book.assets.some(a => a.id === value.assetId && a.kind === "account")) throw new RepositoryError("체크카드의 출금 계좌를 선택해 주세요.", 400);
+      if (value.kind === "credit" && value.assetId !== null) throw new RepositoryError("신용카드에는 체크카드 출금 계좌를 연결하지 않아요.", 400);
+      if (existing && (existing.kind !== value.kind || existing.assetId !== value.assetId) && (book.expenses.some(e => e.debitCardId === id || (e.paymentKind === "card" && e.paymentMethod === existing.name)) || book.operations.some(o => o.card === existing.name || o.rows.some(r => r.cardId === id) || o.template?.debitCardId === id || (o.template?.paymentKind === "card" && o.template.paymentMethod === existing.name)))) throw new RepositoryError("거래가 연결된 카드의 종류와 출금 계좌는 바꿀 수 없어요. 다른 카드로 등록해 주세요.", 400);
       if (revision !== null && !existing) throw new RepositoryError("수정할 카드를 찾을 수 없어요.", 404);
       if (existing && revision === null) {
-        if (existing.name === value.name && existing.issuer === value.issuer) return book.cards;
+        if (JSON.stringify(cardInputSchema.parse(existing)) === JSON.stringify(value)) return book.cards;
         throw new RepositoryError("이미 등록한 카드예요. 목록을 확인해 주세요.", 409);
       }
       if (book.cards.some(c => c.id !== id && c.name.toLocaleLowerCase() === value.name.toLocaleLowerCase())) throw new RepositoryError("같은 이름의 카드가 있어요. 구분할 이름을 입력해 주세요.", 409);
@@ -157,13 +167,13 @@ export function createBookRepository(storage: BookStorage) {
         if (existing.name !== value.name) {
           // 이름으로 연결된 이전 기록을 한 번의 장부 저장으로 함께 변경합니다.
           if (book.expenses.some(e => e.paymentKind === "card" && e.paymentMethod === value.name) || book.operations.some(o => o.card === value.name || (o.template?.paymentKind === "card" && o.template.paymentMethod === value.name))) throw new RepositoryError("바꾸려는 이름으로 기록된 다른 카드 거래가 있어요. 다른 이름을 사용해 주세요.", 409);
-          for (const expense of book.expenses) if (expense.paymentKind === "card" && expense.paymentMethod === existing.name) {
+          for (const expense of book.expenses) if (expense.debitCardId === id || (expense.paymentKind === "card" && expense.paymentMethod === existing.name)) {
             expense.paymentMethod = value.name; expense.revision++; expense.updatedAt = now;
           }
           for (const operation of book.operations) {
             let changed = false;
             if (operation.card === existing.name) { operation.card = value.name; changed = true; }
-            if (operation.template?.paymentKind === "card" && operation.template.paymentMethod === existing.name) { operation.template.paymentMethod = value.name; changed = true; }
+            if (operation.template && (operation.template.debitCardId === id || (operation.template.paymentKind === "card" && operation.template.paymentMethod === existing.name))) { operation.template.paymentMethod = value.name; changed = true; }
             if (changed) { operation.revision++; operation.updatedAt = now; }
           }
         }

@@ -170,7 +170,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
               <div />
               {row.cardId !== undefined ? <Field label={`충전 신용카드 ${index + 1}`} hint="충전은 소비로 집계하지 않고 카드 명세서에 승인으로 표시해요. 실제 납부할 때 계좌에서 출금돼요.">
                 <select className="form-control" required value={row.cardId} onChange={e => patch({ cardId: e.target.value, fromId: "" })}>
-                  <option value="">카드 선택</option>{book.cards?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <option value="">카드 선택</option>{book.cards?.filter(c => c.kind !== "debit").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field> : <AssetSelect
                 label={`출발 자산 ${index + 1}`}
@@ -640,7 +640,7 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
     .reduce((s, r) => s + (r.amount ?? 0), toMinor(value.fee, "KRW") ?? 0);
   const cards = [
     ...new Set(
-      [...(book.cards ?? []).map(c => c.name), ...book.expenses
+      [...(book.cards ?? []).filter(c => c.kind !== "debit").map(c => c.name), ...book.expenses
         .filter((e) => e.paymentKind === "card")
         .map((e) => e.paymentMethod), ...(value.card ? [value.card] : [])],
     ),

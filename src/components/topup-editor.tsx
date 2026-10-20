@@ -67,7 +67,7 @@ export function TopupEditor({
         <div className="mt-5 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="충전 결제 방식"><select className="form-control" value={t.cardId !== undefined ? "card" : "asset"} onChange={e => patch({ fromId: "", cardId: e.target.value === "card" ? "" : undefined })}><option value="asset">자산에서 출금</option><option value="card">신용카드 승인</option></select></Field><div />
-            {t.cardId !== undefined ? <Field label="충전 신용카드"><select className="form-control" value={t.cardId} onChange={e => patch({ cardId: e.target.value, fromId: "" })}><option value="">카드 선택</option>{cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field> : <Field label="충전 출발 자산">
+            {t.cardId !== undefined ? <Field label="충전 신용카드"><select className="form-control" value={t.cardId} onChange={e => patch({ cardId: e.target.value, fromId: "" })}><option value="">카드 선택</option>{cards.filter(c => c.kind !== "debit").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field> : <Field label="충전 출발 자산">
               <select
                 className="form-control"
                 value={t.fromId}

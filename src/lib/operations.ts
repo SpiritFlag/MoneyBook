@@ -484,6 +484,14 @@ export function validateOperations(book: BookData, verifyingId?: string) {
   const expense = (id: string) =>
     book.expenses.find((e) => e.id === id) ??
     fail("연결할 원지출을 찾을 수 없어요.");
+  for (const entry of [...book.expenses, ...book.operations.flatMap(o => o.kind === "template" && o.template ? [o.template] : [])]) {
+    if (entry.paymentKind === "debit") {
+      const debit = book.cards?.find(c => c.id === entry.debitCardId && c.kind === "debit");
+      const account = book.assets.find(a => a.id === debit?.assetId && a.kind === "account");
+      if (!debit || !account || entry.assetId !== account.id || entry.currency !== account.currency || entry.paymentMethod !== debit.name) fail("체크카드와 연결 계좌를 다시 선택해 주세요.");
+    } else if (entry.debitCardId) fail("체크카드 결제 방식을 선택해 주세요.");
+    if (entry.paymentKind === "card" && book.cards?.some(c => c.kind === "debit" && c.name === entry.paymentMethod)) fail("체크카드는 신용카드 승인으로 기록할 수 없어요.");
+  }
   for (const e of book.expenses) {
     const seen = new Set([e.id]);
     let ref = e.orderReference;
@@ -507,7 +515,7 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       if (!op.rows.length) fail("자산 이동 단계를 추가해 주세요.");
       for (const row of op.rows) {
         const from = row.cardId ? null : asset(row.fromId), to = asset(row.toId);
-        if (row.cardId && (row.fromId || !book.cards?.some(c => c.id === row.cardId))) fail("충전할 신용카드를 다시 선택해 주세요.");
+        if (row.cardId && (row.fromId || !book.cards?.some(c => c.id === row.cardId && c.kind !== "debit"))) fail("충전할 신용카드를 다시 선택해 주세요.");
         if (from?.id === to.id) fail("출발·도착 자산을 다르게 선택해 주세요.");
         const sourceCurrency = from?.currency ?? "KRW";
         money(row.amount, sourceCurrency);
@@ -662,6 +670,7 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       }
     }
     if (op.kind === "statement") {
+      if (book.cards?.some(c => c.name === op.card && c.kind === "debit")) fail("체크카드 결제는 신용카드 명세서에 포함하지 않아요.");
       if (
         !op.card.trim() ||
         op.start > op.end ||
