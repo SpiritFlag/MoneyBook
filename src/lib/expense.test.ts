@@ -9,6 +9,27 @@ import { seedExpenses } from "./seed-expenses";
 import { createExpenseRepository } from "./expense-repository";
 
 test("공개 예시가 저장 스키마를 충족한다", () => { for (const item of seedExpenses) assert.ok(expenseSchema.safeParse(item).success); });
+
+test("상품 순서를 바꿔 저장·재조회해도 상품 ID·할인 연결·금액을 보존한다", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "moneybook-receipt-order-"));
+  assert.equal(path.dirname(path.resolve(directory)), path.resolve(tmpdir()));
+  try {
+    const file = path.join(directory, "ledger.json");
+    const repo = createExpenseRepository(file);
+    const input = { ...seedExpenses[0], items: [
+      { id: "sandwich", name: "샌드위치", unitPrice: "3100", quantity: 1, discounts: [] },
+      { id: "coffee", name: "커피", unitPrice: "1800", quantity: 1, discounts: [{ id: "coupon", name: "상품 할인", amount: "1000" }] },
+    ] };
+    await repo.save(input, "reorder", null);
+    const before = (await repo.list()).find(e => e.id === "reorder")!;
+    await repo.save({ ...before, items: [before.items[1], before.items[0]] }, before.id, before.revision);
+    const after = (await createExpenseRepository(file).list()).find(e => e.id === before.id)!;
+    assert.deepEqual(after.items, [before.items[1], before.items[0]]);
+    assert.equal(after.items[0].discounts[0].id, "coupon");
+    assert.deepEqual(receiptSummary(after), receiptSummary(before));
+    assert.equal(after.paidAmount, before.paidAmount);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 test("통화별 소수·0원·미확정 원화를 구분한다", () => {
   assert.equal(toMinor("0.10", "USD")! + toMinor("0.20", "USD")!, 30);
   assert.equal(toMinor("0.1", "KRW"), null);

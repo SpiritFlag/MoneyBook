@@ -98,7 +98,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_10rem]"><Field label="거래명"><input lang="ko" inputMode="text" className="form-control" maxLength={120} placeholder="어디에 쓴 돈인가요?" value={value.title} onChange={(e) => field("title", e.target.value)} /></Field><Field label="카테고리"><select className="form-control" value={value.category} onChange={(e) => field("category", e.target.value as ExpenseInput["category"])}>{Object.entries(categories).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field></div>
           </FormSection>
-          <FormSection number="02" title="상품과 명세" description="확인한 내용만 채워도 괜찮아요. 할인은 해당 상품 아래에, 전체 할인·가산은 따로 기록해요."><ReceiptEditor value={value} onChange={change} /></FormSection>
+          <FormSection number="02" title="상품과 명세" description="확인한 내용만 채워도 괜찮아요. 할인은 해당 상품 아래에, 전체 할인·가산은 따로 기록해요."><ReceiptEditor value={value} onChange={change} disabled={busy} /></FormSection>
           <FormSection number="03" title="결제수단과 날짜">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="결제 방식"><select className="form-control" value={value.paymentKind} onChange={(e) => change({ ...value, paymentKind: e.target.value as ExpenseInput["paymentKind"], assetId: null, debitCardId: null, topup: null, paymentMethod: value.assetId ? "" : value.paymentMethod })}><option value="card">신용카드 승인</option><option value="debit">체크카드</option><option value="account">계좌·이체</option><option value="cash">현금</option><option value="stored">충전 잔액·재화</option><option value="receivable">미수금</option></select></Field>
