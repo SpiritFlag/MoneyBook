@@ -27,6 +27,7 @@ import {
   tollPaymentTargets,
   operationExpenses,
   statementRows,
+  statementTotal,
   type Operation,
   type OperationKind,
   type BookData,
@@ -620,4 +621,76 @@ test("하이패스 출금 선택지는 이용 날짜·시각을 표시하고 미
   assert.equal(targets[0].title, "2026-10-17 21:16:30 · 같은 경로 · 일부 출금 기관");
   assert.equal(targets[2].title, "2026-10-18 · 시각 미확인 · 같은 경로 · 미출금 기관");
   assert.deepEqual(tollPaymentTargets(ops, paid.id).map(t => [t.id, t.remaining]), [["toll/paid", 3000], ["toll/partial", 2000], ["toll/pending", 1000], ["unknown/pending", 1000]]);
+});
+
+test("청구할인은 명세서 합계와 납부에만 반영하고 승인·소비 원금은 보존한다", () => {
+  const e = expense();
+  const statement = op("statement", { card: "card", amount: "22000", selected: [e.id],
+    billingDiscounts: [{ rowId: e.id, amount: "3000" }], fee: "1000", feeChecked: true, verified: true,
+    payment: { assetId: "bank", date, time: null, amount: "22000" } });
+  const book = makeBook([e], [statement]);
+  validateOperations(book, statement.id);
+  assert.equal(statementTotal(statement, statementRows(statement, book, statement.id)), 22000);
+  assert.equal(e.paidAmount, "24000");
+  assert.equal(netConsumption(e, book.operations), 12000);
+  assert.equal(operationPostings(book.operations, book.assets)[0].amount, -22000);
+  assert.equal(operationExpenses(book.operations)[0].paidAmount, "1000");
+  const invalid = (billingDiscounts: Operation["billingDiscounts"]) => validateOperations({ ...book, operations: [{ ...statement, billingDiscounts }] }, statement.id);
+  for (const amount of ["-1", "0.5", "abc", "24001"]) assert.throws(() => invalid([{ rowId: e.id, amount }]));
+  assert.throws(() => invalid([{ rowId: e.id, amount: "1500" }, { rowId: e.id, amount: "1500" }]), /중복/);
+  assert.throws(() => invalid([]), /총액/);
+  assert.equal(statementTotal({ ...statement, billingDiscounts: undefined }, statementRows(statement, book, statement.id)), 25000);
+});
+
+test("임시 명세서는 불일치 총액·체크·이월·청구할인을 재조회하고 이어서 확정한다", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "moneybook-statement-draft-"));
+  try {
+    const file = path.join(directory, "book.json");
+    const repo = createExpenseRepository(file, undefined, []);
+    const e = expense("draft-approval");
+    const foreign = expense("draft-fx", { currency: "USD", paidAmount: "10", krwAmount: null, shared: false });
+    await repo.save(e, e.id, null);
+    await repo.save(foreign, foreign.id, null);
+    const draft = op("statement", { card: "card", amount: "", selected: [e.id], deferred: [foreign.id],
+      billingDiscounts: [{ rowId: e.id, amount: "1000" }], memo: "중간 대조", fee: "1000", feeChecked: true });
+    await repo.saveOperation(draft, draft.id, null);
+    const reopened = createExpenseRepository(file, undefined, []);
+    const saved = (await reopened.listOperations())[0];
+    assert.deepEqual(saved.billingDiscounts, draft.billingDiscounts);
+    assert.deepEqual(saved.selected, draft.selected);
+    assert.deepEqual(saved.deferred, draft.deferred);
+    assert.equal(saved.memo, "중간 대조");
+    assert.equal(saved.feeChecked, true);
+    assert.equal(saved.verified, false);
+    assert.deepEqual(operationPostings([saved], []), []);
+    assert.deepEqual(operationExpenses([saved]), []);
+    await assert.rejects(reopened.saveOperation({ ...saved, verified: true }, saved.id, saved.revision), /총액/);
+    await reopened.saveOperation({ ...saved, amount: "24000", verified: true }, saved.id, saved.revision);
+    assert.equal((await reopened.listOperations())[0].verified, true);
+    await assert.rejects(reopened.saveOperation(saved, saved.id, saved.revision), /다른 화면/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("다른 명세서의 확정을 임시저장이 가로막지 않고 확정 단계의 중복 청구는 막는다", () => {
+  const e = expense();
+  const draft = op("statement", { id: "draft", card: "card", selected: [e.id], amount: "23000",
+    billingDiscounts: [{ rowId: e.id, amount: "1000" }] });
+  const final = op("statement", { id: "final", month: "2026-11", card: "card", selected: [e.id], amount: "24000", verified: true });
+  const book = makeBook([e], [draft, final]);
+  validateOperations(book, final.id);
+  assert.throws(() => validateOperations({ ...book, operations: [{ ...draft, verified: true }, final] }, draft.id), /다른 명세서/);
+});
+
+test("취소전표·원화 미확정 항목에는 청구할인을 적용할 수 없다", () => {
+  const e = expense();
+  const cancel = op("cancel", { sourceId: e.id, cancelRoute: "credit", amount: "24000" });
+  const paid = op("statement", { id: "previous", month: "2026-09", card: "card", selected: [e.id], amount: "24000", verified: true,
+    payment: { assetId: "bank", date, time: null, amount: "24000" } });
+  const statement = op("statement", { card: "card", selected: [`cancel:${cancel.id}`],
+    billingDiscounts: [{ rowId: `cancel:${cancel.id}`, amount: "1000" }], amount: "-25000", verified: true });
+  assert.throws(() => validateOperations(makeBook([e], [paid, cancel, statement]), statement.id), /청구할인/);
+  const fx = expense("fx", { currency: "USD", paidAmount: "10", krwAmount: null });
+  assert.throws(() => validateOperations(makeBook([fx], [{ ...statement, selected: [fx.id], billingDiscounts: [{ rowId: fx.id, amount: "1000" }] }])), /원화 미확정/);
 });

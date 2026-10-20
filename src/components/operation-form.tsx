@@ -109,7 +109,11 @@ export function OperationForm({
         onSubmit={async (event) => {
           event.preventDefault();
           if (submitting.current) return;
-          const parsed = operationInputSchema.safeParse(normalizeTransitOperation(value));
+          const submitter = (event.nativeEvent as SubmitEvent).submitter;
+          const draft = kind === "statement" && submitter instanceof HTMLButtonElement && submitter.value === "draft";
+          const parsed = operationInputSchema.safeParse(normalizeTransitOperation(
+            draft ? { ...value, verified: false, payment: null } : value,
+          ));
           if (!parsed.success) {
             setError(
               parsed.error.issues
@@ -337,8 +341,10 @@ export function OperationForm({
               {error}
             </p>
           ) : null}
-          <div className="flex justify-end">
-            <Button type="submit">{busy ? "저장 중…" : "기록 저장"}</Button>
+          {kind === "statement" && !value.payment ? <p className="text-sm text-muted-foreground">금액이 맞지 않거나 대조가 덜 끝나도 임시저장할 수 있어요. 저장한 내역은 카드 관리에서 이어서 대조하세요.</p> : null}
+          <div className="flex flex-wrap justify-end gap-3">
+            {kind === "statement" && !value.payment && !existing?.payment ? <Button type="submit" name="intent" value="draft" variant="outline">{busy ? "저장 중…" : "임시저장"}</Button> : null}
+            <Button type="submit" disabled={kind === "statement" && !value.verified}>{busy ? "저장 중…" : kind === "statement" ? value.payment ? "납부 저장" : "검산 완료 저장" : "기록 저장"}</Button>
           </div>
         </fieldset>
       </form>

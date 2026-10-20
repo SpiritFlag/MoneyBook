@@ -13,6 +13,7 @@ import {
   sharedRemaining,
   tollRemaining,
   statementRows,
+  statementDiscount,
   type OperationKind,
 } from "@/lib/operations";
 
@@ -210,7 +211,7 @@ export function FinanceBook({
                     <p className="text-xs text-muted-foreground">
                       {operationLabels[o.kind]} · {o.date}
                       {o.kind === "statement"
-                        ? ` · ${o.payment ? "납부 완료" : o.verified ? "검증 완료 · 납부 대기" : "검증 중"}`
+                        ? ` · ${o.payment ? "납부 완료" : o.verified ? "검증 완료 · 납부 대기" : "임시저장 · 대조 이어하기"}`
                         : ""}
                     </p>
                     <p className="mt-2 break-words font-semibold">{o.title}</p>
@@ -221,7 +222,7 @@ export function FinanceBook({
                       : o.kind === "template"
                         ? "상세·불러오기 →"
                         : o.kind === "statement"
-                          ? formatMinor(
+                          ? signedMinor(o.amount, "KRW") === null ? "청구 총액 미입력" : formatMinor(
                               signedMinor(o.amount, "KRW") ?? 0,
                               "KRW",
                             )
@@ -320,7 +321,7 @@ export function RecordPage({
           role="status"
           className="mb-4 rounded-xl bg-secondary p-4 text-sm text-primary"
         >
-          저장했어요. 연결된 원장과 소비에 반영했어요.
+          {op.kind === "statement" && !op.verified ? "임시저장했어요. 카드 관리에서 이어서 대조할 수 있어요." : "저장했어요. 연결된 원장과 소비에 반영했어요."}
         </p>
       ) : null}
       <article className="book-sheet overflow-hidden rounded-3xl bg-card">
@@ -332,7 +333,7 @@ export function RecordPage({
           {op.kind !== "transfer" && op.kind !== "template" ? (
             <p className="mt-5 text-3xl font-bold text-primary">
               {op.kind === "statement"
-                ? formatMinor(signedMinor(op.amount, "KRW") ?? 0, "KRW")
+                ? signedMinor(op.amount, "KRW") === null ? "청구 총액 미입력" : formatMinor(signedMinor(op.amount, "KRW") ?? 0, "KRW")
                 : formatMoney(op.amount, op.currency)}
             </p>
           ) : null}
@@ -463,8 +464,9 @@ export function RecordPage({
                   ? "실제 납부 완료"
                   : op.verified
                     ? "검증 완료 · 납부 대기"
-                    : "검증 중"}
+                    : "임시저장 · 대조 중"}
               </p>
+              {!op.verified ? <Button asChild variant="outline" className="mt-4"><Link href={`/records/${op.id}/edit`}>대조 이어하기</Link></Button> : null}
               <ul className="mt-4 space-y-2">
                 {statementRows(op, book, op.id)
                   .filter(
@@ -478,6 +480,7 @@ export function RecordPage({
                         {r.amount === null
                           ? "원화 미확정"
                           : formatMinor(r.amount, "KRW")}{" "}
+                        {op.selected.includes(r.id) && statementDiscount(op, r.id) > 0 ? `− 청구할인 ${formatMinor(statementDiscount(op, r.id), "KRW")} = 청구 ${formatMinor((r.amount ?? 0) - statementDiscount(op, r.id), "KRW")} ` : ""}
                         ·{" "}
                         {op.selected.includes(r.id)
                           ? "확인"

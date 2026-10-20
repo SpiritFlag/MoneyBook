@@ -6,13 +6,15 @@ import { InsuranceExclusions } from "./insurance-exclusions";
 import { Field } from "./form-fields";
 import { Button } from "./ui/button";
 
-import { rateUnits, valueInWon } from "@/lib/asset";
+import { rateUnits, valueInWon, signedMinor } from "@/lib/asset";
 import {
   newRow,
   transferDiscounts,
   transferDiscountTotal,
   transferOrderWarning,
   statementRows,
+  statementDiscount,
+  statementTotal,
   sharedRemaining,
   tollPaymentTargets,
   insuranceRecovered,
@@ -627,9 +629,9 @@ export function PaymentEditor({ value, change, book }: EditorProps) {
 export function StatementEditor({ value, change, book, id }: EditorProps) {
   const { formatMinor } = useCurrencies();
   const rows = statementRows(value, book, id);
-  const sum = rows
-    .filter((r) => value.selected.includes(r.id))
-    .reduce((s, r) => s + (r.amount ?? 0), toMinor(value.fee, "KRW") ?? 0);
+  const rowIds = new Set(rows.filter(row => row.amount !== null).map(row => row.id));
+  const unavailable = value.selected.filter(rowId => !rowIds.has(rowId));
+  const sum = statementTotal(value, rows);
   const cards = [
     ...new Set(
       [...(book.cards ?? []).filter(c => c.kind !== "debit").map(c => c.name), ...book.expenses
@@ -650,6 +652,7 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
                 card: e.target.value,
                 selected: [],
                 deferred: [],
+                billingDiscounts: [],
                 verified: false,
                 payment: null,
               })
@@ -712,6 +715,13 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
         </label>
       </div>
       <div className="space-y-2">
+        {unavailable.length ? <div className="rounded-xl bg-secondary/50 p-4 text-sm" role="status">
+          다른 명세서에서 확인했거나 이용기간·카드가 바뀐 항목 {unavailable.length}건이 있어요.
+          <Button type="button" variant="outline" className="ml-2" onClick={() => change({ ...value,
+            selected: value.selected.filter(rowId => rowIds.has(rowId)),
+            billingDiscounts: value.billingDiscounts?.filter(d => rowIds.has(d.rowId)), verified: false,
+          })}>대조 대상에서 제거</Button>
+        </div> : null}
         {rows.map((row) => (
           <div
             key={row.id}
@@ -740,11 +750,24 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
                   {row.date} ·{" "}
                   {row.amount === null
                     ? "원화 미확정 · 검산 제외"
-                    : formatMinor(row.amount, "KRW")}
+                    : `${row.amount > 0 ? "승인 " : ""}${formatMinor(row.amount, "KRW")}`}
                 </small>
               </span>
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+              {row.amount !== null && row.amount > 0 ? <div className="w-40 space-y-1">
+                <Field label="청구할인 · 원">
+                  <input className="form-control" aria-label={`${row.title} 청구할인 · 원`} inputMode="numeric" maxLength={20} placeholder="0"
+                    value={value.billingDiscounts?.find(d => d.rowId === row.id)?.amount ?? ""}
+                    onChange={e => change({ ...value,
+                      billingDiscounts: [
+                        ...(value.billingDiscounts ?? []).filter(d => d.rowId !== row.id),
+                        ...(e.target.value ? [{ rowId: row.id, amount: e.target.value }] : []),
+                      ], verified: false,
+                    })} />
+                </Field>
+                <p className="text-xs text-muted-foreground">청구 {formatMinor(row.amount - statementDiscount(value, row.id), "KRW")}</p>
+              </div> : null}
               <a className="text-xs text-primary" href={row.href}>
                 상세
               </a>
@@ -774,8 +797,8 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
         ))}
       </div>
       <p className="rounded-xl bg-secondary/50 p-4 text-sm">
-        체크한 항목 + 연회비 {formatMinor(sum, "KRW")} · 명세서 차이{" "}
-        {formatMinor((Number(value.amount) || 0) - sum, "KRW")}
+        체크한 항목 − 청구할인 + 연회비 {formatMinor(sum, "KRW")} · 명세서 차이{" "}
+        {signedMinor(value.amount, "KRW") === null ? "청구 총액 입력 후 확인" : formatMinor(signedMinor(value.amount, "KRW")! - sum, "KRW")}
       </p>
       <label className="flex items-center gap-3 text-sm font-medium">
         <input
@@ -787,6 +810,7 @@ export function StatementEditor({ value, change, book, id }: EditorProps) {
       </label>
       <PaymentEditor value={value} change={change} book={book} />
       <p className="text-xs leading-6 text-muted-foreground">
+        청구할인은 체크한 항목의 청구액에만 반영하고 원래 승인금액은 보존해요.{" "}
         검산만으로 출금하지 않아요. 실제 납부를 연결하면 계좌에서 출금하고
         연회비만 납부일의 신규 정기지출로 반영해요.
       </p>

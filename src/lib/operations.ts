@@ -111,6 +111,7 @@ export const operationInputSchema = z.object({
   end: date,
   selected: z.array(text).max(500),
   deferred: z.array(text).max(500),
+  billingDiscounts: z.array(z.object({ rowId: text.min(1), amount })).max(500).optional(),
   fee: amount,
   feeChecked: z.boolean(),
   verified: z.boolean(),
@@ -330,6 +331,13 @@ export function statementRows(
   return [...entries, ...slips, ...topups]
     .filter((r) => !claimed.has(r.id))
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+}
+export function statementDiscount(input: OperationInput, rowId: string) {
+  return toMinor(input.billingDiscounts?.find(d => d.rowId === rowId)?.amount ?? "0", "KRW") ?? 0;
+}
+export function statementTotal(input: OperationInput, rows: ReturnType<typeof statementRows>) {
+  return rows.filter(row => input.selected.includes(row.id))
+    .reduce((sum, row) => sum + (row.amount ?? 0) - statementDiscount(input, row.id), toMinor(input.fee, "KRW") ?? 0);
 }
 export type Posting = {
   id: string;
@@ -733,14 +741,26 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       )
         fail("검산 항목과 이월 항목이 중복되었어요.");
       if (
-        op.selected.some(
+        op.verified && op.selected.some(
           (id) => !rows.some((r) => r.id === id && r.amount !== null),
         )
       )
         fail("이미 다른 명세서에서 확인했거나 원화 미확정인 항목이에요.");
       const total = signedMinor(op.amount, "KRW");
-      if (total === null) fail("명세서 총액을 확인해 주세요.");
+      if (total === null && (op.verified || op.payment)) fail("명세서 총액을 확인해 주세요.");
       const fee = money(op.fee, "KRW");
+      const discounts = op.billingDiscounts ?? [];
+      if (new Set(discounts.map(d => d.rowId)).size !== discounts.length)
+        fail("같은 항목의 청구할인이 중복되었어요.");
+      for (const discount of discounts) {
+        const value = money(discount.amount, "KRW");
+        // Drafts can outlive their candidates. Only checked rows affect a verified bill.
+        if (op.verified && op.selected.includes(discount.rowId)) {
+          const row = rows.find(r => r.id === discount.rowId);
+          if (!row || row.amount === null || row.amount <= 0 || value > row.amount)
+            fail("청구할인은 원화 확정 승인금액 이내로 입력해 주세요.");
+        }
+      }
       if (op.verified) {
         if (fee > 0 && !op.feeChecked) fail("연회비도 개별 대조해 주세요.");
         if (
@@ -750,11 +770,9 @@ export function validateOperations(book: BookData, verifyingId?: string) {
           )
         )
           fail("명세서에 없는 항목은 다음 청구로 이월해 주세요.");
-        const sum = rows
-          .filter((r) => op.selected.includes(r.id))
-          .reduce((s, r) => s + (r.amount ?? 0), fee);
+        const sum = statementTotal(op, rows);
         if (sum !== total)
-          fail("체크한 승인·취소전표·연회비 합계와 명세서 총액이 다릅니다.");
+          fail("체크한 승인 − 청구할인 + 취소전표·연회비 합계와 명세서 총액이 다릅니다.");
       }
       if (op.payment) {
         asset(op.payment.assetId, "KRW");
