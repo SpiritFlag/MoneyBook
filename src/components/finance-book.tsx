@@ -353,7 +353,7 @@ export function RecordPage({
           ) : null}
           {op.kind === "transit" && op.journey !== undefined ? <TransitJourney legs={op.journey} /> : null}
           {op.kind === "transit" && op.transitPaymentDate ? <p className="text-sm text-muted-foreground">결제일 {op.transitPaymentDate} · 교통 소비는 이용일 {op.date}에 반영</p> : null}
-          {op.kind === "transit" && op.transitFunding ? <section className="rounded-xl bg-secondary/50 p-4 text-sm"><h2 className="font-semibold">사용 전 충전 · 자산 이동</h2><p className="mt-2">{book.assets.find(a => a.id === op.transitFunding?.fromId)?.name} → {book.assets.find(a => a.id === op.assetId)?.name} · {formatMoney(op.transitFunding.amount, "KRW")}</p><p className="mt-2 text-xs text-muted-foreground">{op.transitFunding.date} · {op.transitFunding.time ?? "시각 미확인"} · 교통 소비에서 제외</p></section> : null}
+          {op.kind === "transit" && op.transitFunding ? <section className="rounded-xl bg-secondary/50 p-4 text-sm"><h2 className="font-semibold">교통카드 자동 충전 · 자산 이동</h2><p className="mt-2">{book.assets.find(a => a.id === op.transitFunding?.fromId)?.name} → {book.assets.find(a => a.id === op.assetId)?.name} · {formatMoney(op.transitFunding.amount, "KRW")}</p><p className="mt-2 text-xs text-muted-foreground">{op.transitFunding.date} · {op.transitFunding.time ?? "시각 미확인"} · 교통 소비에서 제외</p></section> : null}
           {op.rows.length && !(op.kind === "transit" && op.journey !== undefined) ? (
             <section>
               <h2 className="mb-4 font-semibold">

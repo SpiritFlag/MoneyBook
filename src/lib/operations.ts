@@ -372,8 +372,8 @@ export function operationPostings(
       });
     if (op.kind === "transit" && op.transitFunding) {
       const funding = op.transitFunding;
-      add(funding.fromId, funding.amount, -1, funding.date, funding.time, "funding-out", `${op.title} · 교통카드 충전 출금`, -2);
-      add(op.assetId, funding.amount, 1, funding.date, funding.time, "funding-in", `${op.title} · 교통카드 충전 입금`, -2);
+      add(funding.fromId, funding.amount, -1, funding.date, funding.time, "funding-out", `${op.title} · 교통카드 자동 충전 출금`, -2);
+      add(op.assetId, funding.amount, 1, funding.date, funding.time, "funding-in", `${op.title} · 교통카드 자동 충전 입금`, -2);
     }
     if (op.kind === "transit")
       op.rows.forEach((r, i) =>

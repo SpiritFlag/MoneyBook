@@ -59,7 +59,7 @@ test("특별요금 원인·버스 시군·시각 순서·음수 운임을 검증
   validateTransitLegs(unknown);
   assert.equal(normalizeTransitOperation({ ...newOperation("transit", date), journey: unknown }).time, null);
 });
-test("교통과 사용 전 충전은 원자 저장하고 소비·원장·수정·재시도에 중복 반영하지 않는다", async () => {
+test("교통과 자동 충전은 원자 저장하고 소비·원장·수정·재시도에 중복 반영하지 않는다", async () => {
   const { repo, read } = fixture();
   await repo.saveAsset({ ...newAsset(date), name: "은행", openingBalance: "30000" }, "bank", null);
   await repo.saveAsset({ ...newAsset(date), name: "선불교통", kind: "stored", openingBalance: "1000" }, "transit", null);
