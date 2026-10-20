@@ -7,6 +7,7 @@ import {
   ownKrw,
   ownMinor,
   toMinor,
+  receiptSummary,
   type Expense,
   type Currency,
 } from "./expense";
@@ -117,6 +118,21 @@ export const operationInputSchema = z.object({
   template: expenseInputSchema.nullable(),
 });
 export type OperationInput = z.infer<typeof operationInputSchema>;
+// Explicit conversion of existing item allocations; never change saved records on read.
+export function combineInsuranceAllocations(allocations: OperationInput["allocations"], expenses: readonly Expense[]) {
+  const combined = new Set<string>();
+  return allocations.flatMap(allocation => {
+    if (combined.has(allocation.targetId)) return [];
+    const group = allocations.filter(a => a.targetId === allocation.targetId);
+    const expense = expenses.find(e => e.id === allocation.targetId);
+    if (!expense || group.length < 2 || group.some(a => !a.itemId || a.excludedItemIds?.length || !expense.items.some(item => item.id === a.itemId) || toMinor(a.amount, "KRW") === null || toMinor(a.deductible, "KRW") === null)) return [allocation];
+    const amount = group.reduce((sum, a) => sum + toMinor(a.amount, "KRW")!, 0);
+    const deductible = group.reduce((sum, a) => sum + toMinor(a.deductible, "KRW")!, 0);
+    if (!Number.isSafeInteger(amount) || !Number.isSafeInteger(deductible)) return [allocation];
+    combined.add(allocation.targetId);
+    return [{ ...allocation, itemId: "", amount: String(amount), deductible: String(deductible), excludedItemIds: expense.items.filter(item => !group.some(a => a.itemId === item.id)).map(item => item.id) }];
+  });
+}
 export const operationSchema = operationInputSchema.safeExtend({
   id: text,
   revision: z.number().int().positive(),
@@ -599,7 +615,7 @@ export function validateOperations(book: BookData, verifyingId?: string) {
             const excluded = a.excludedItemIds ?? [];
             if (a.itemId && excluded.length) fail("기존 상품별 배분은 거래 전체로 변경한 뒤 비해당 항목을 선택해 주세요.");
             if (new Set(excluded).size !== excluded.length || excluded.some(itemId => !e.items.some(item => item.id === itemId))) fail("비해당 의료비 항목이 중복되었거나 원거래에서 없어졌어요. 다시 선택해 주세요.");
-            if (excluded.length > 0 && excluded.length === e.items.length && money(a.amount, "KRW") > 0) fail("모든 항목을 비해당으로 선택한 의료비에는 보험금을 배분할 수 없어요.");
+            if (excluded.length > 0 && excluded.length === e.items.length && receiptSummary(e).status === "matched" && money(a.amount, "KRW") > 0) fail("모든 항목을 비해당으로 선택한 의료비에는 보험금을 배분할 수 없어요.");
           }
         }
       }

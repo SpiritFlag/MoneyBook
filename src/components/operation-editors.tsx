@@ -14,6 +14,7 @@ import {
   sharedRemaining,
   tollRemaining,
   insuranceRecovered,
+  combineInsuranceAllocations,
   type OperationInput,
   type BookData,
 } from "@/lib/operations";
@@ -432,6 +433,7 @@ export function JourneyEditor({ value, change, book }: EditorProps) {
 export function AllocationEditor({ value, change, book, id }: EditorProps) {
   const insurance = value.kind === "insurance",
     toll = value.kind === "toll-payment";
+  const combined = insurance ? combineInsuranceAllocations(value.allocations, book.expenses) : value.allocations;
   const targets = toll
     ? book.operations
         .filter((o) => o.kind === "toll")
@@ -474,6 +476,7 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
             ? "실제로 출금된 기관별 항목만 선택하세요. 미출금 기관은 그대로 남아요."
             : "입금 한 건에 여러 원지출을 연결할 수 있어요. 회수해도 원래 본인 소비는 유지돼요."}
       </p>
+      {insurance && combined.length < value.allocations.length ? <div className="rounded-xl bg-secondary/40 p-4"><Button type="button" variant="secondary" size="sm" onClick={() => change({ ...value, allocations: combined })}>상품별 배분을 거래별로 합치기</Button><p className="mt-2 text-xs leading-6 text-muted-foreground">같은 의료비의 귀속액·자기부담금을 합치고, 지정하지 않았던 상품은 비해당으로 표시해요. 저장 전 입력에만 적용해요.</p></div> : null}
       {value.allocations.map((allocation, index) => {
         const patch = (next: Partial<typeof allocation>) =>
           change({

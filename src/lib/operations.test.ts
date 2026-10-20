@@ -15,6 +15,7 @@ import {
   newOperation,
   newRow,
   operationSchema,
+  combineInsuranceAllocations,
   transferDiscounts,
   transferDiscountTotal,
   validateOperations,
@@ -190,6 +191,13 @@ test("보험 비해당 상품은 ID로 보존하며 실제 귀속액만 소비�
       { id: "certificate", name: "제증명", unitPrice: "5700", quantity: 1, discounts: [] },
     ] });
     await repo.save(medical, medical.id, null);
+    const legacyAllocations = [
+      { ...allocation(medical.id, "11500"), itemId: "visit", deductible: "5000" },
+      { ...allocation(medical.id, "9200"), itemId: "test" },
+    ];
+    assert.deepEqual(combineInsuranceAllocations(legacyAllocations, [medical]), [{ ...allocation(medical.id, "20700"), deductible: "5000", excludedItemIds: ["certificate"] }]);
+    assert.equal(legacyAllocations[0].itemId, "visit");
+    assert.deepEqual(combineInsuranceAllocations([{ ...legacyAllocations[0], amount: "" }, legacyAllocations[1]], [medical]), [{ ...legacyAllocations[0], amount: "" }, legacyAllocations[1]]);
     const input = op("insurance", { assetId: "bank", amount: "20700", allocations: [{ ...allocation(medical.id, "20700"), deductible: "5000", excludedItemIds: ["certificate"] }] });
     await repo.saveOperation(input, "insurance", null);
     const reopened = createExpenseRepository(path.join(folder, "ledger.json"));
@@ -206,6 +214,9 @@ test("보험 비해당 상품은 ID로 보존하며 실제 귀속액만 소비�
     const legacy = { ...saved, allocations: [{ ...saved.allocations[0], excludedItemIds: undefined, itemId: "visit" }] };
     await repo.saveOperation(legacy, saved.id, saved.revision);
     assert.equal((await repo.listOperations())[0].allocations[0].itemId, "visit");
+    await repo.save({ ...medical, items: [medical.items[2]] }, "partial", null);
+    await repo.saveOperation({ ...input, amount: "1000", allocations: [{ ...allocation("partial", "1000"), excludedItemIds: ["certificate"] }] }, "partial-insurance", null);
+    assert.equal((await repo.listOperations()).find(o => o.id === "partial-insurance")?.amount, "1000");
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
