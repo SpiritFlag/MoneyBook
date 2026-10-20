@@ -48,6 +48,12 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
 
 // 저장 위치와 무관하게 동일한 거래 검증·수정 규칙을 적용합니다.
 export function createBookRepository(storage: BookStorage) {
+  function debitSource(id: string, fromId: string, book: Book) {
+    const card = book.cards.find(c => c.id === id && c.kind === "debit");
+    const account = book.assets.find(a => a.id === card?.assetId && a.kind === "account");
+    if (!account || (fromId && fromId !== account.id)) throw new RepositoryError("체크카드와 연결 출금 계좌를 확인해 주세요.", 400);
+    return account.id;
+  }
   const read = () => storage.read();
   const enqueue: BookStorage["transact"] = (operation) => storage.transact(operation);
   async function write(book: Book, persist: PersistBook, verifyingId?: string) {
@@ -57,6 +63,7 @@ export function createBookRepository(storage: BookStorage) {
   function save(input: ExpenseInput, id: string, expectedRevision: number | null): Promise<Expense[]> {
     return enqueue(async (book, persist) => {
       input = expenseInputSchema.parse(input);
+      if (input.topup?.debitCardId !== undefined) input = { ...input, topup: { ...input.topup, fromId: debitSource(input.topup.debitCardId, input.topup.fromId, book) } };
       if (input.useKind === "period") input = { ...input, useTime: null, useTimeFollowsPayment: false };
       else if (input.useTimeFollowsPayment === true) input = { ...input, useTime: input.time };
       for (const code of [input.currency, input.receiptCurrency]) if (isCustomCurrency(code) && !book.gameCurrencies.some(c => c.code === code)) throw new RepositoryError("먼저 게임 재화를 등록해 주세요.", 400);
@@ -94,7 +101,7 @@ export function createBookRepository(storage: BookStorage) {
         const t = input.topup;
         const date = t.sameTime ? input.paymentDate : t.date;
         const previous = book.operations[linked];
-        const transfer: Operation = { ...newOperation("transfer", date), title: `${input.title} · 연결 충전`, parentId: id, time: t.sameTime ? input.time : t.time, rows: [{ ...newRow(date, "topup"), fromId: t.fromId, cardId: t.cardId, toId: input.assetId, amount: t.amount, received: t.received, rate: t.rate, time: t.sameTime ? input.time : t.time }], id: previous?.id ?? randomUUID(), revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
+        const transfer: Operation = { ...newOperation("transfer", date), title: `${input.title} · 연결 충전`, parentId: id, time: t.sameTime ? input.time : t.time, rows: [{ ...newRow(date, "topup"), fromId: t.fromId, cardId: t.cardId, debitCardId: t.debitCardId, toId: input.assetId, amount: t.amount, received: t.received, rate: t.rate, time: t.sameTime ? input.time : t.time }], id: previous?.id ?? randomUUID(), revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
         if (previous) book.operations[linked] = transfer; else book.operations.push(transfer);
       } else if (linked >= 0) {
         book.operations[linked] = { ...book.operations[linked], parentId: "", revision: book.operations[linked].revision + 1, updatedAt: now };
@@ -132,6 +139,7 @@ export function createBookRepository(storage: BookStorage) {
   function saveOperation(input: OperationInput, id: string, revision: number | null): Promise<Operation[]> {
     return enqueue(async (book, persist) => {
       input = operationInputSchema.parse(normalizeTransitOperation(operationInputSchema.parse(input)));
+      if (input.kind === "transfer") input = { ...input, rows: input.rows.map(row => row.debitCardId === undefined ? row : { ...row, fromId: debitSource(row.debitCardId, row.fromId, book) }) };
       const index = book.operations.findIndex((o) => o.id === id);
       const previous = book.operations[index];
       if (revision !== null && !previous) throw new RepositoryError("기록을 찾을 수 없어요.", 404);
@@ -155,7 +163,7 @@ export function createBookRepository(storage: BookStorage) {
       const existing = book.cards.find(c => c.id === id);
       if (value.kind === "debit" && !book.assets.some(a => a.id === value.assetId && a.kind === "account")) throw new RepositoryError("체크카드의 출금 계좌를 선택해 주세요.", 400);
       if (value.kind === "credit" && value.assetId !== null) throw new RepositoryError("신용카드에는 체크카드 출금 계좌를 연결하지 않아요.", 400);
-      if (existing && (existing.kind !== value.kind || existing.assetId !== value.assetId) && (book.expenses.some(e => e.debitCardId === id || (e.paymentKind === "card" && e.paymentMethod === existing.name)) || book.operations.some(o => o.card === existing.name || o.rows.some(r => r.cardId === id) || o.template?.debitCardId === id || (o.template?.paymentKind === "card" && o.template.paymentMethod === existing.name)))) throw new RepositoryError("거래가 연결된 카드의 종류와 출금 계좌는 바꿀 수 없어요. 다른 카드로 등록해 주세요.", 400);
+      if (existing && (existing.kind !== value.kind || existing.assetId !== value.assetId) && (book.expenses.some(e => e.debitCardId === id || (e.paymentKind === "card" && e.paymentMethod === existing.name)) || book.operations.some(o => o.card === existing.name || o.rows.some(r => r.cardId === id || r.debitCardId === id) || o.template?.debitCardId === id || (o.template?.paymentKind === "card" && o.template.paymentMethod === existing.name)))) throw new RepositoryError("거래가 연결된 카드의 종류와 출금 계좌는 바꿀 수 없어요. 다른 카드로 등록해 주세요.", 400);
       if (revision !== null && !existing) throw new RepositoryError("수정할 카드를 찾을 수 없어요.", 404);
       if (existing && revision === null) {
         if (JSON.stringify(cardInputSchema.parse(existing)) === JSON.stringify(value)) return book.cards;

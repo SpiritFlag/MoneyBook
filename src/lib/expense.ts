@@ -61,7 +61,7 @@ const baseExpenseSchema = z.object({
   paidAmount: moneySchema,
   paymentMethod: z.string().trim().min(1, "결제수단을 입력해 주세요.").max(80),
   assetId: z.string().min(1).max(80).nullable().default(null),
-  topup: z.object({ fromId: z.string().max(80), cardId: z.string().max(120).optional(), amount: moneySchema, received: moneySchema, sameTime: z.boolean(), date: dateSchema, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), rate: z.string().max(20) }).nullable().default(null),
+  topup: z.object({ fromId: z.string().max(80), cardId: z.string().max(120).optional(), debitCardId: z.string().max(120).optional(), amount: moneySchema, received: moneySchema, sameTime: z.boolean(), date: dateSchema, time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), rate: z.string().max(20) }).nullable().default(null),
   paymentKind: z.enum(["card", "debit", "account", "cash", "stored", "receivable"]),
   debitCardId: z.string().uuid().nullable().optional(),
   paymentDate: dateSchema,

@@ -1,4 +1,5 @@
 "use client";
+import { FundingSource } from "./funding-source";
 import { TimeInput } from "./time-input";
 import { InsuranceExclusions } from "./insurance-exclusions";
 import { Field } from "./form-fields";
@@ -164,22 +165,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                 />
               </Field>
               <div />
-              <Field label={`충전 결제 방식 ${index + 1}`}>
-                <select className="form-control" value={row.cardId !== undefined ? "card" : "asset"} onChange={e => patch({ fromId: "", cardId: e.target.value === "card" ? "" : undefined })}>
-                  <option value="asset">자산에서 출금</option><option value="card">신용카드 승인</option>
-                </select>
-              </Field>
-              <div />
-              {row.cardId !== undefined ? <Field label={`충전 신용카드 ${index + 1}`} hint="충전은 소비로 집계하지 않고 카드 명세서에 승인으로 표시해요. 실제 납부할 때 계좌에서 출금돼요.">
-                <select className="form-control" required value={row.cardId} onChange={e => patch({ cardId: e.target.value, fromId: "" })}>
-                  <option value="">카드 선택</option>{book.cards?.filter(c => c.kind !== "debit").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </Field> : <AssetSelect
-                label={`출발 자산 ${index + 1}`}
-                value={row.fromId}
-                onChange={(fromId) => patch({ fromId })}
-                book={book}
-              />}
+              <FundingSource value={row} change={patch} assets={book.assets} cards={book.cards ?? []} suffix={` ${index + 1}`} />
               <AssetSelect
                 label={`도착 자산 ${index + 1}`}
                 value={row.toId}
@@ -187,7 +173,7 @@ export function TransferEditor({ value, change, book }: EditorProps) {
                 book={book}
               />
               <MoneyField
-                label={row.cardId !== undefined ? `카드 승인액 ${index + 1} · KRW` : `실제 출금액 ${index + 1} · ${from?.currency ?? "출발 단위"}`}
+                label={row.debitCardId !== undefined ? `체크카드 승인액 ${index + 1} · ${from?.currency ?? "출금 단위"}` : row.cardId !== undefined ? `카드 승인액 ${index + 1} · KRW` : `실제 출금액 ${index + 1} · ${from?.currency ?? "출발 단위"}`}
                 value={row.amount}
                 onChange={(amount) => patch({ amount })}
               />

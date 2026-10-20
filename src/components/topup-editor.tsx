@@ -1,4 +1,5 @@
 "use client";
+import { FundingSource } from "./funding-source";
 import { TimeInput } from "./time-input";
 import { Field, FormSection } from "./form-fields";
 import { Button } from "./ui/button";
@@ -66,25 +67,9 @@ export function TopupEditor({
       {t ? (
         <div className="mt-5 space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="충전 결제 방식"><select className="form-control" value={t.cardId !== undefined ? "card" : "asset"} onChange={e => patch({ fromId: "", cardId: e.target.value === "card" ? "" : undefined })}><option value="asset">자산에서 출금</option><option value="card">신용카드 승인</option></select></Field><div />
-            {t.cardId !== undefined ? <Field label="충전 신용카드"><select className="form-control" value={t.cardId} onChange={e => patch({ cardId: e.target.value, fromId: "" })}><option value="">카드 선택</option>{cards.filter(c => c.kind !== "debit").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field> : <Field label="충전 출발 자산">
-              <select
-                className="form-control"
-                value={t.fromId}
-                onChange={(e) => patch({ fromId: e.target.value })}
-              >
-                <option value="">자산 선택</option>
-                {assets
-                  .filter((a) => a.id !== value.assetId)
-                  .map((a) => (
-                    <option value={a.id} key={a.id}>
-                      {a.name} · {a.currency}
-                    </option>
-                  ))}
-              </select>
-            </Field>}
+            <FundingSource value={t} change={patch} assets={assets.filter(a => a.id !== value.assetId)} cards={cards} />
             <Field
-              label={t.cardId !== undefined ? "충전 카드 승인액 · KRW" : `실제 충전 출금액 · ${source?.currency ?? "출발 통화"}`}
+              label={t.debitCardId !== undefined ? `충전 체크카드 승인액 · ${source?.currency ?? "출금 단위"}` : t.cardId !== undefined ? "충전 카드 승인액 · KRW" : `실제 충전 출금액 · ${source?.currency ?? "출발 통화"}`}
             >
               <input
                 className="form-control"

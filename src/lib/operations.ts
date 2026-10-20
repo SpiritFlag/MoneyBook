@@ -50,6 +50,7 @@ const rowSchema = z.object({
   time,
   fromId: text,
   cardId: text.optional(),
+  debitCardId: text.optional(),
   toId: text,
   amount,
   received: amount,
@@ -531,6 +532,10 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       if (!op.rows.length) fail("자산 이동 단계를 추가해 주세요.");
       for (const row of op.rows) {
         const from = row.cardId ? null : asset(row.fromId), to = asset(row.toId);
+        if (row.debitCardId !== undefined) {
+          const debit = book.cards?.find(c => c.id === row.debitCardId && c.kind === "debit");
+          if (row.cardId !== undefined || !debit || !from || from.kind !== "account" || from.id !== debit.assetId) fail("충전할 체크카드와 연결 출금 계좌를 확인해 주세요.");
+        }
         if (row.cardId && (row.fromId || !book.cards?.some(c => c.id === row.cardId && c.kind !== "debit"))) fail("충전할 신용카드를 다시 선택해 주세요.");
         if (from?.id === to.id) fail("출발·도착 자산을 다르게 선택해 주세요.");
         const sourceCurrency = from?.currency ?? "KRW";

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { userExpenseRepository, storedSchema } from "./expense-repository";
 import { expenseInputSchema, newExpense } from "./expense";
-import { newOperation, newRow, statementRows } from "./operations";
+import { newOperation, newRow, statementRows, operationPostings } from "./operations";
 import { newAsset, assetPosition } from "./asset";
 
 test("체크카드는 계좌에 연결해 결제액을 한 번 차감하고 이름 변경·수정·재조회에도 유지한다", async () => {
@@ -46,6 +46,46 @@ test("체크카드는 계좌에 연결해 결제액을 한 번 차감하고 이�
     await assert.rejects(repo.save({ ...draft, debitCardId: randomUUID() }, randomUUID(), null), { status: 400 });
     await assert.rejects(repo.save({ ...draft, currency: "USD" }, randomUUID(), null), { status: 400 });
     await assert.rejects(repo.saveAsset({ ...account, kind: "cash" }, account.id, account.revision), { status: 400 });
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("체크카드 이동·연결 충전은 계좌에서 한 번 출금하고 승인 ID를 보존한다", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "moneybook-debit-transfer-"));
+  assert.equal(path.dirname(path.resolve(directory)), path.resolve(tmpdir()));
+  try {
+    const repo = userExpenseRepository("debit-transfer", directory);
+    const date = "2026-10-20", debitCardId = randomUUID();
+    await repo.saveAsset({ ...newAsset(date), name: "은행", openingBalance: "30000" }, "bank", null);
+    await repo.saveAsset({ ...newAsset(date), name: "충전 잔액", kind: "stored", openingBalance: "1000" }, "stored", null);
+    await repo.saveCard({ name: "체크", issuer: "", kind: "debit", assetId: "bank" }, debitCardId);
+    const input = { ...newOperation("transfer", date), rows: [{ ...newRow(date, "charge"), debitCardId, fromId: "", toId: "stored", amount: "10000", received: "10000" }] };
+    await repo.saveOperation(input, "transfer", null);
+    await repo.saveOperation(input, "transfer", null);
+    let saved = (await repo.listOperations())[0];
+    assert.equal(saved.rows[0].fromId, "bank");
+    assert.equal(saved.rows[0].debitCardId, debitCardId);
+    const balance = async (id: string) => { const assets = await repo.listAssets(); return assetPosition(assets.find(a => a.id === id)!, await repo.list(), date, operationPostings(await repo.listOperations(), assets)).balance; };
+    assert.equal(await balance("bank"), 20000);
+    assert.equal(await balance("stored"), 11000);
+    await repo.saveOperation({ ...saved, rows: [{ ...saved.rows[0], amount: "12000", received: "12000" }] }, saved.id, saved.revision);
+    saved = (await repo.listOperations())[0];
+    assert.equal(await balance("bank"), 18000);
+    assert.equal(await balance("stored"), 13000);
+    await assert.rejects(repo.saveOperation({ ...saved, rows: [{ ...saved.rows[0], fromId: "other" }] }, saved.id, saved.revision), { status: 400 });
+    await assert.rejects(repo.saveOperation({ ...saved, rows: [{ ...saved.rows[0], cardId: debitCardId }] }, saved.id, saved.revision), { status: 400 });
+    await assert.rejects(repo.saveCard({ name: "체크", issuer: "", kind: "credit" }, debitCardId, 1), { status: 400 });
+    const draft = { ...newExpense(date), title: "연결 충전 결제", assetId: "stored", paymentKind: "stored" as const, paymentMethod: "충전 잔액", paidAmount: "1500", topup: { debitCardId, fromId: "", amount: "10000", received: "10000", rate: "1", date, time: null, sameTime: true } };
+    await repo.save(draft, "expense", null);
+    await repo.save(draft, "expense", null);
+    assert.equal(await balance("bank"), 8000);
+    assert.equal(await balance("stored"), 21500);
+    await repo.save({ ...draft, paidAmount: "2000" }, "expense", 1);
+    assert.equal(await balance("bank"), 8000);
+    assert.equal(await balance("stored"), 21000);
+    await repo.saveCard({ name: "바꾼 체크", issuer: "", kind: "debit", assetId: "bank" }, debitCardId, 1);
+    const book = { assets: await repo.listAssets(), expenses: await repo.list(), operations: await repo.listOperations(), cards: await repo.listCards() };
+    assert.equal(statementRows({ ...newOperation("statement", date), card: "바꾼 체크" }, book).length, 0);
+    assert.equal(book.operations.find(o => o.parentId === "expense")?.rows[0].debitCardId, debitCardId);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
