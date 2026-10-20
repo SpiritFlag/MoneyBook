@@ -71,4 +71,11 @@ test("시각 자동 연결은 저장 후에도 유지하고 기존 기록의 별
   assert.equal((await repo.list()).find(e => e.id === "separate")?.useTime, null);
   await repo.save({ ...base, time: "09:00", useTime: "10:00" }, "legacy", null);
   assert.equal((await repo.list()).find(e => e.id === "legacy")?.useTime, "10:00");
+  await repo.save({ ...base, useKind: "period", useEnd: "2026-10-31", time: "23:22", useTime: "23:22", useTimeFollowsPayment: true }, "period", null);
+  const period = (await repo.list()).find(e => e.id === "period")!;
+  assert.equal(period.time, "23:22");
+  assert.equal(period.useTime, null);
+  assert.equal(period.useTimeFollowsPayment, false);
+  await repo.save({ ...period, useTime: "08:00", useTimeFollowsPayment: false }, period.id, period.revision);
+  assert.equal((await repo.list()).find(e => e.id === "period")?.useTime, null);
 });

@@ -37,6 +37,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   const requestId = useRef(existing?.id ?? "");
   const errorRef = useRef<HTMLDivElement>(null);
   function change(next: ExpenseInput) {
+    if (next.useKind === "period") next = { ...next, useTime: null, useTimeFollowsPayment: false };
     const definition = currencyDefinitions.data?.find(c => c.code === next.currency);
     if (definition) {
       const amount = toMinor(next.paidAmount, next.currency);
@@ -91,7 +92,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
       <fieldset disabled={busy} className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
         <div className="min-w-0 space-y-5">
           <FormSection number="01" title="실제 결제">
-            <div className="mb-6 flex flex-wrap gap-2">{(["once", "period"] as const).map((kind) => <Button type="button" key={kind} variant={value.useKind === kind ? "secondary" : "ghost"} aria-pressed={value.useKind === kind} onClick={() => field("useKind", kind)}>{value.useKind === kind ? <Check size={14} /> : null}{kind === "once" ? "일회성 이용" : "기간형 이용"}</Button>)}</div>
+            <div className="mb-6 flex flex-wrap gap-2">{(["once", "period"] as const).map((kind) => <Button type="button" key={kind} variant={value.useKind === kind ? "secondary" : "ghost"} aria-pressed={value.useKind === kind} onClick={() => change({ ...value, useKind: kind, ...(kind === "once" && value.useKind === "period" ? { useTime: value.time, useTimeFollowsPayment: true } : {}) })}>{value.useKind === kind ? <Check size={14} /> : null}{kind === "once" ? "일회성 이용" : "기간형 이용"}</Button>)}</div>
             <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
               <Field label={card ? "카드 승인금액" : "실제 결제 총액"} hint="명세를 바꿔도 이 금액은 자동으로 바뀌지 않아요."><input autoFocus className="form-control amount-input" inputMode="decimal" value={value.paidAmount} placeholder="0" onChange={(e) => field("paidAmount", e.target.value)} /></Field>
               <Field label="결제 통화·재화"><select className="form-control" value={value.currency} onChange={(e) => { const currency = e.target.value as Currency; change({ ...value, currency, assetId: null, debitCardId: null, topup: null, krwAmount: null, valuationRate: null, valuationSource: null, paymentMethod: value.assetId ? "" : value.paymentMethod, receiptCurrency: value.receiptCurrency === value.currency ? currency : value.receiptCurrency }); }}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
@@ -110,10 +111,10 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
               <Field label={card ? "승인일" : "결제일"}><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.paymentDate} onChange={(e) => field("paymentDate", e.target.value)} /></Field>
               <Field label={card ? "승인 시각 (선택)" : "결제 시각 (선택)"} hint="모르면 비워 두세요. 시각 미확인으로 남겨요."><TimeInput value={value.time} onChange={time => field("time", time)} /></Field>
               <Field label={value.useKind === "period" ? "이용 시작일" : "이용일"} hint={followsPaymentDate(value) ? "결제일을 따라가요. 직접 바꾸면 별도 이용일로 유지돼요." : "직접 지정한 이용일이에요. 결제일을 바꿔도 유지돼요."}><input className="form-control" type="date" min="1900-01-01" max="9999-12-31" value={value.useDate} onChange={(e) => field("useDate", e.target.value)} /></Field>
-              <div className="space-y-3">
+              {value.useKind === "once" ? <div className="space-y-3">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!followsPaymentTime(value)} onChange={e => change({ ...value, useTimeFollowsPayment: !e.target.checked, useTime: e.target.checked ? value.useTime : value.time })} />이용 시각을 따로 입력</label>
-                {followsPaymentTime(value) ? <p className="text-xs leading-5 text-muted-foreground">{value.time === null ? "결제 시각과 함께 시각 미확인으로 남겨요." : `결제 시각 ${value.time}과 같게 기록해요.`}</p> : <Field label={value.useKind === "period" ? "이용 시작 시각 (선택)" : "이용 시각 (선택)"} hint="일일 내역을 정렬할 시각이에요. 모르면 비워 두세요."><TimeInput value={value.useTime} onChange={time => field("useTime", time)} /></Field>}
-              </div>
+                {followsPaymentTime(value) ? <p className="text-xs leading-5 text-muted-foreground">{value.time === null ? "결제 시각과 함께 시각 미확인으로 남겨요." : `결제 시각 ${value.time}과 같게 기록해요.`}</p> : <Field label="이용 시각 (선택)" hint="일일 내역을 정렬할 시각이에요. 모르면 비워 두세요."><TimeInput value={value.useTime} onChange={time => field("useTime", time)} /></Field>}
+              </div> : null}
               {value.useKind === "period" ? <Field label="이용 종료일"><input className="form-control" type="date" min={value.useDate} max="9999-12-31" value={value.useEnd ?? ""} onChange={(e) => field("useEnd", e.target.value || null)} /></Field> : <div className="flex items-end"><Button type="button" variant="ghost" className="text-primary" onClick={() => change({ ...value, useDate: value.paymentDate, useDateFollowsPayment: true })}>결제일과 같게 · 자동 연결</Button></div>}
             </div>
             {value.useKind === "period" ? <div className="mt-5"><Field label="월간 소비 반영"><select className="form-control" value={value.allocation} onChange={(e) => field("allocation", e.target.value as ExpenseInput["allocation"])}><option value="start">시작월에 전액</option><option value="annual">연간 결제 · 12개월 배분</option></select></Field><p className="mt-3 text-xs leading-5 text-muted-foreground">기간형은 일일 소비에 더하지 않고 월간 정기지출에 반영해요. 연간 배분의 원 단위 나머지는 첫 달에 더해요.</p></div> : null}
