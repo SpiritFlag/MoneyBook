@@ -11,7 +11,7 @@ import { newOperation, newRow, type Operation } from "./operations";
 import { seedExpenses } from "./seed-expenses";
 import * as query from "./mcp-queries";
 
-const config = { resource: "https://moneybook.example/api/mcp", issuer: "https://clerk.example", clientId: "dedicated-moneybook" };
+const config = { resource: "https://moneybook.example/mcp", issuer: "https://clerk.example", clientId: "https://chatgpt.com/oauth/client.json" };
 const token: OAuthAccessToken = { subject: "user_owner", clientId: config.clientId, scopes: ["profile", "offline_access"], aud: [config.resource], revoked: false, expired: false, expiration: 4_000_000_000 };
 const stamp = { revision: 1, createdAt: "2026-10-18T00:00:00Z", updatedAt: "2026-10-18T00:00:00Z" };
 function fixture(): Book { return storedSchema.parse({ version: 1, expenses: structuredClone(seedExpenses), assets: [], operations: [] }); }
@@ -21,7 +21,9 @@ function operation(kind: Operation["kind"], id: string, fields: Partial<Operatio
 
 test("MCP OAuth: resource/client/user/expiration/revocation checks and no session/shared-secret fallback", () => {
   assert.equal(mcpUserId(oauthIdentity(token, "opaque", config)), "user_owner");
-  for (const fields of [{ aud: undefined }, { aud: ["https://other.example/api/mcp"] }, { clientId: "other-universe-app" }, { subject: "org_other" }, { expiration: null }, { expiration: NaN }, { expiration: 1 }, { revoked: true }, { expired: true }]) assert.equal(oauthIdentity({ ...token, ...fields }, "opaque", config), undefined);
+  for (const fields of [{ aud: undefined }, { aud: ["https://other.example/mcp"] }, { aud: ["https://moneybook.example/api/mcp"] }, { clientId: "other-universe-app" }, { subject: "org_other" }, { expiration: null }, { expiration: NaN }, { expiration: 1 }, { revoked: true }, { expired: true }]) assert.equal(oauthIdentity({ ...token, ...fields }, "opaque", config), undefined);
+  assert.deepEqual(mcpConfig({ MCP_RESOURCE_URL: config.resource, CLERK_AUTHORIZATION_SERVER: config.issuer, CLERK_OAUTH_CLIENT_ID: config.clientId }), config);
+  assert.throws(() => mcpConfig({ MCP_RESOURCE_URL: "https://moneybook.example/api/mcp", CLERK_AUTHORIZATION_SERVER: config.issuer, CLERK_OAUTH_CLIENT_ID: config.clientId }));
   assert.throws(() => mcpUserId(undefined));
   assert.throws(() => mcpConfig({ MCP_AUTH_MODE: "secret", MCP_SECRET: "fallback" }));
   assert.throws(() => mcpConfig({ MCP_RESOURCE_URL: "https://evil.example/other", CLERK_AUTHORIZATION_SERVER: config.issuer, CLERK_OAUTH_CLIENT_ID: config.clientId }));
@@ -41,7 +43,7 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
     const response = await handler(new Request(config.resource, { method: "POST", headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }, body: "{}" }));
     assert.equal(response.status, bearer === "no-scope" ? 403 : 401);
     assert.match(response.headers.get("www-authenticate") ?? "", /oauth-protected-resource/);
-    assert.ok(response.headers.get("www-authenticate")?.includes(`resource_metadata="${new URL(mcpMetadataPath, config.resource).href}"`), "OAuth challenge must point at the mounted metadata route, with no duplicate /api/mcp prefix");
+    assert.ok(response.headers.get("www-authenticate")?.includes(`resource_metadata="${new URL(mcpMetadataPath, config.resource).href}"`), "OAuth challenge must point at the mounted metadata route, with no duplicate /mcp prefix");
   }
   assert.equal(reads, 0, "Unauthorized requests must never load a book");
   async function client(bearer: string) {

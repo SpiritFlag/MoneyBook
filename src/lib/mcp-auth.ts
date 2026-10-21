@@ -1,6 +1,6 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 
-export const mcpMetadataPath = "/.well-known/oauth-protected-resource/api/mcp";
+export const mcpMetadataPath = "/.well-known/oauth-protected-resource/mcp";
 export const mcpScopes = ["profile", "offline_access"];
 export type McpConfig = { resource: string; issuer: string; clientId: string };
 export type OAuthAccessToken = {
@@ -14,14 +14,14 @@ export function mcpAuthOptions(config: McpConfig) {
 }
 
 export function mcpConfig(env: Record<string, string | undefined> = process.env): McpConfig {
-  // Reuse the existing MoneyBook OAuth client, never accept another Universe app's token.
+  // Require the configured OAuth client and a token bound to this exact MCP resource.
   const resource = env.MCP_RESOURCE_URL;
   const issuer = env.CLERK_AUTHORIZATION_SERVER;
   const clientId = env.CLERK_OAUTH_CLIENT_ID;
   if (!resource || !issuer || !clientId || [resource, issuer, clientId].includes("[SENSITIVE]")) throw new Error("MCP OAuth configuration missing");
   const resourceUrl = new URL(resource), issuerUrl = new URL(issuer);
   const valid = (url: URL) => (url.protocol === "https:" || url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)) && !url.username && !url.password && !url.search && !url.hash;
-  if (!valid(resourceUrl) || !valid(issuerUrl) || resourceUrl.pathname !== "/api/mcp" || issuerUrl.pathname !== "/") throw new Error("Invalid MCP OAuth configuration");
+  if (!valid(resourceUrl) || !valid(issuerUrl) || resourceUrl.pathname !== "/mcp" || issuerUrl.pathname !== "/") throw new Error("Invalid MCP OAuth configuration");
   return { resource: resourceUrl.href, issuer: issuerUrl.origin, clientId };
 }
 
