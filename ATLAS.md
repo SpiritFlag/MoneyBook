@@ -121,7 +121,7 @@
 - 운영 연결 주소는 `https://moneybook.spiritflag.work/mcp`, issuer는 `https://clerk.spiritflag.work`다. ChatGPT 연결 화면의 Client ID·Secret은 비워 두고 CIMD를 사용한다. 2026-10-21 사용자 승인으로 Universe의 기존 ChatGPT CIMD에 `profile`을 추가하고 기존 `email`·`openid`·`offline_access`·`life:*`는 보존했다. Vercel Production의 `CLERK_OAUTH_CLIENT_ID`는 CIMD URL, `MCP_RESOURCE_URL`은 `/mcp`로 맞췄다. 인스턴스 전체의 기본 scope·CIMD/DCR 공개 정책은 변경하지 않았다.
 - 레거시 `k5NUVpz7J8hKojGn`은 별도 MoneyBook Clerk 인스턴스(`clerk.moneybook.spiritflag.work`)의 앱이다. 현재 공통 로그인 인스턴스에 재사용할 수 없다. 과거 연결 문서의 issuer·client 조합을 그대로 쓰지 말고 대시보드의 실제 소속을 확인한다. 연결 검증은 첫 302 응답만으로 성공이라 판단하지 않으며 scope 허용·로그인/consent·token의 client/audience·인증된 MCP 조회를 구분한다.
 - `mcp.test.ts`는 공식 SDK의 discovery·호출·resource 조회, 2025 프로토콜 호환, 인증/권한 거절, 계정 격리, 입력 검증, 페이지, 소비 계산과 원장 잔액을 가상 데이터로 검증한다. `test:db`는 기존 전용 검증 브랜치에서 SELECT 전용 reader의 계정 격리 및 조회 전후 revision/payload 보존을 추가 검증한다. 실제 운영 계정의 OAuth consent와 인증된 원격 조회는 별도 실제 연결 검증이 필요하다.
-- 구현 검증: 전체 테스트 106개·Neon 통합 테스트·타입 검사·ESLint·프로덕션 빌드를 확인한다. 대출 가져오기의 중복·충돌·원자성, 동시 자산 쓰기 시 보존, 조회 도구의 계정 격리·페이지·미확정·지원·연체 항목을 포함한다.
+- 구현 검증: 전체 테스트 106개·Neon 통합 테스트·타입 검사·ESLint·프로덕션 빌드 통과. 대출 가져오기의 중복·충돌·원자성, 동시 자산 쓰기 시 보존, 조회 도구의 계정 격리·페이지·미확정·지원·연체 항목을 포함한다. 운영에서는 기존 OAuth 연결의 overview로 새 장부의 loans를 재조회했고 웹 로그인 후 목록·상세와 무인증 API/MCP의 401/private no-store를 확인했다. 기존 클라이언트가 예전 tools/list 스키마를 캐시한 경우 새 도구와 get_record.loans를 사용하려면 연결의 도구 목록을 새로고침해야 한다.
 
 npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 일치하도록 dev/start의 hostname을 localhost로 통일했다. 이전 보관 웹 4318과 별개다. 개발 서버와 빌드를 동시에 시작하면 생성 타입 파일이 충돌할 수 있다. 최종 브라우저 검증 및 현재 실행은 npm run build 후 npm start를 사용했다. 이전 인증 작업의 개발 모드 반복 새로고침 원인은 미해결이며 이번 DB 연결의 프로덕션 빌드 실행에서는 발생하지 않았다.
 
@@ -137,8 +137,8 @@ npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 �
 - npm run db:migrate는 버전 관리된 SQL을 하나의 트랜잭션으로 적용한다. 기본 .env.local, 검증용은 MONEYBOOK_ENV_FILE=.env.neon-test.local을 사용한다. 재실행은 기존 행을 변경하지 않는다. 스키마 자동 생성은 요청 처리 중 실행하지 않는다.
 - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY / DATABASE_URL은 환경변수로만 관리한다. 로컬에는 Development Clerk 키를 사용한다. npm run check:connections는 비밀값 없이 연결을 점검한다. Vercel Production은 기존 운영 Clerk 키와 실제 Neon DB, Preview는 개발 Clerk 키와 검증 브랜치 DB로 분리했다. 로컬 Development 계정과 Production 계정은 Clerk 인스턴스가 다르므로 같은 이메일이어도 장부가 자동 공유되지 않는다.
 - Vercel: SpiritFlag Universe / moneybook (prj_31JYtXFBJUWXne0xZCLI1LNeCXdY). CLI 기존 로그인으로 접근해 Vite 설정을 Next.js로 전환했다. 운영 주소는 https://moneybook.spiritflag.work 이다. vercel.json은 npm ci / npm run build와 함수 리전 sin1을 지정한다. .vercelignore에서 환경변수·로컬 장부·백업을 업로드에서 제외한다.
-- Git 연동은 예전 저장소 ID 대신 새 공개 SpiritFlag/MoneyBook(repoId 1424147442)에 연결했다. 운영 배포 dpl_3iZCYi3YQDNHRmZ5P87zFouanM14는 719cddc 소스로 빌드하고 검증 후 promote했다. 기존 배포 dpl_9XygaUePTDvjLBY1CRRMiXccBtgR는 롤백 참고로 남는다.
-- 배포 검증: 운영 홈 200, 비인증 장부 API 3종 401/private no-store, 실제 브라우저의 기존 유니버스 로그인 세션과 빈 장부 조회 성공. 공개 서비스 이용 대상의 추가 정책은 미확정이며 현재는 Clerk 로그인 계정별 격리다.
+- Git 연동은 예전 저장소 ID 대신 새 공개 SpiritFlag/MoneyBook(repoId 1424147442)에 연결했다. 대출·현황 MCP 구현 d9553de는 운영 환경으로 빌드해 HTTP 검증 후 promote했다. 실제 현재 배포·커밋과 이전 릴리스는 Vercel 및 Git 이력에서 확인한다.
+- 배포 검증: 로그인한 계정의 대출 목록·상세와 기존 OAuth MCP 조회 성공. 대출 배치 적용 전 비공개 백업을 보관하고 적용 후 기존 장부 영역 보존을 대조했다. 대출 API 두 경로와 기존 자산 API·MCP의 비인증 401/private no-store, OAuth metadata 두 경로의 200을 확인했다. 운영 오류 로그 조회 결과 오류 기록은 없었다. 공개 서비스 이용 대상의 추가 정책은 미확정이며 현재는 Clerk 로그인 계정별 격리다.
 - 자동 은행 동기화·환율 조회, 종합 대시보드·투자, 대출 웹 편집·상환 자동 계산·가계부 자동 연동, 부분 취소·복잡한 재정산 등 보류한 기능은 구현 완료로 취급하지 않는다.
 
 사용자는 반복 논의를 줄이고 연결된 결과를 먼저 보고 싶어 한다. 합의된 범위는 묶어서 구현·검증한다. 중요한 제품 방향·운영환경 변경은 별도 합의한다.
