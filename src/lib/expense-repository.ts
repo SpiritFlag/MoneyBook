@@ -10,11 +10,12 @@ import { expenseInputSchema, expenseSchema, type Expense, type ExpenseInput } fr
 import { assetInputSchema, assetSchema, type AssetInput, type Asset } from "./asset";
 import { operationInputSchema, operationSchema, normalizeTransitOperation, validateOperations, operationPostings, newOperation, newRow, type Operation, type OperationInput } from "./operations";
 import { seedExpenses } from "./seed-expenses";
+import { loanSampleSchema, loanBatchSchema, type LoanSample } from "./loan";
 
 export class RepositoryError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "RepositoryError"; }
 }
-export const storedSchema = z.object({ version: z.literal(1), gameCurrencies: z.array(gameCurrencySchema).default([]), cards: z.array(cardSchema).default([]), expenses: z.array(expenseSchema), assets: z.array(assetSchema).default([]), operations: z.array(operationSchema).default([]) });
+export const storedSchema = z.object({ version: z.literal(1), gameCurrencies: z.array(gameCurrencySchema).default([]), cards: z.array(cardSchema).default([]), expenses: z.array(expenseSchema), assets: z.array(assetSchema).default([]), operations: z.array(operationSchema).default([]), loans: z.array(loanSampleSchema).default([]) });
 export type Book = z.infer<typeof storedSchema>;
 export type PersistBook = (book: Book) => Promise<void>;
 export interface BookStorage {
@@ -28,7 +29,7 @@ export function createExpenseRepository(file: string, queue: WriteQueue = { writ
   async function read(): Promise<Book> {
     try { return storedSchema.parse(JSON.parse(await readFile(file, "utf8"))); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, gameCurrencies: [], cards: [], expenses: structuredClone(initialExpenses), assets: [], operations: [] };
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, gameCurrencies: [], cards: [], expenses: structuredClone(initialExpenses), assets: [], operations: [], loans: [] };
       throw new RepositoryError("체험 장부를 읽지 못했어요. 기존 파일은 보존했어요. 서버 로그를 확인해 주세요.", 500);
     }
   }
@@ -212,7 +213,21 @@ export function createBookRepository(storage: BookStorage) {
       return book.gameCurrencies;
     });
   }
-  return { listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, save, saveAsset, saveOperation };
+  async function importLoans(input: LoanSample[]) {
+    const incoming = loanBatchSchema.parse(input);
+    return enqueue(async (book, persist) => {
+      let added = 0;
+      for (const loan of incoming) {
+        const previous = book.loans.find(row => row.id === loan.id);
+        if (previous) {
+          if (JSON.stringify(previous) !== JSON.stringify(loan)) throw new RepositoryError("같은 ID의 다른 대출이 있어요. 기존 기록을 보존했어요.", 409);
+        } else { book.loans.push(structuredClone(loan)); added++; }
+      }
+      if (added) await write(book, persist);
+      return { added, total: book.loans.length };
+    });
+  }
+  return { listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => (await read()).loans, importLoans, save, saveAsset, saveOperation };
 }
 
 // HMR 때 검증·저장 함수는 새로 만들고 쓰기 큐만 공유합니다.

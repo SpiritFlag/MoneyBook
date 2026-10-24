@@ -10,6 +10,7 @@ import { newExpense } from "./expense";
 import { newOperation, newRow, type Operation } from "./operations";
 import { seedExpenses } from "./seed-expenses";
 import * as query from "./mcp-queries";
+import { exampleLoan, exampleCreditLoan } from "./loan-sample";
 
 const config = { resource: "https://moneybook.example/mcp", issuer: "https://clerk.example", clientId: "https://chatgpt.com/oauth/client.json" };
 const token: OAuthAccessToken = { subject: "user_owner", clientId: config.clientId, scopes: ["profile", "offline_access"], aud: [config.resource], revoked: false, expired: false, expiration: 4_000_000_000 };
@@ -31,6 +32,7 @@ test("MCP OAuth: resource/client/user/expiration/revocation checks and no sessio
 
 test("MCP protocol: SDK discovery, all read tools, validation, account isolation and resource guide", async () => {
   const owner = fixture(), outsider = fixture(); outsider.expenses = [];
+  owner.loans = structuredClone([exampleLoan, exampleCreditLoan]);
   const before = JSON.stringify(owner);
   let reads = 0;
   const handler = withMcpAuth(createReadOnlyMcpHandler(async user => { reads++; return structuredClone(user === "user_owner" ? owner : outsider); }), async (_, bearer) => {
@@ -54,7 +56,7 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
   const a = await client("owner"), b = await client("other");
   try {
     const { tools } = await a.listTools();
-    assert.equal(tools.length, 12);
+    assert.equal(tools.length, 16);
     assert.ok(tools.every(t => t.annotations?.readOnlyHint && t.annotations?.destructiveHint === false));
     assert.ok(tools.every(t => !/write|save|create|update|delete|record_book/.test(t.name)));
     assert.equal(reads, 0, "Discovery must not read financial data");
@@ -67,6 +69,14 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
     assert.equal((await b.callTool({ name: "get_record", arguments: { collection: "expenses", id: "demo-1" } })).isError, true);
     assert.equal((await a.callTool({ name: "list_expenses", arguments: { userId: "user_other" } })).isError, true);
     assert.equal((await a.callTool({ name: "get_daily_book", arguments: { date: "2026-02-30" } })).isError, true);
+    const loans = await a.callTool({ name: "get_loan_overview", arguments: { limit: 1 } });
+    assert.equal((loans.structuredContent as { data: { total: number } }).data.total, 2);
+    assert.equal((await b.callTool({ name: "get_loan_detail", arguments: { loanId: exampleLoan.id } })).isError, true);
+    assert.equal((await b.callTool({ name: "list_loan_records", arguments: { loanId: exampleLoan.id, kind: "repayments" } })).isError, true);
+    assert.equal((await a.callTool({ name: "get_loan_detail", arguments: { loanId: exampleLoan.id, userId: "user_other" } })).isError, true);
+    assert.equal((await a.callTool({ name: "get_loan_detail", arguments: { loanId: exampleLoan.id } })).isError, undefined);
+    assert.equal((await a.callTool({ name: "list_loan_records", arguments: { loanId: exampleLoan.id, kind: "schedule", limit: 1 } })).isError, undefined);
+    assert.equal((await a.callTool({ name: "get_asset_overview", arguments: { asOf: "2026-10-18" } })).isError, undefined);
     assert.equal((await a.callTool({ name: "list_operations", arguments: { start: "2026-10-20", end: "2026-10-01" } })).isError, true);
     await assert.rejects(a.callTool({ name: "save_expense", arguments: {} }), /not found/);
     // Also exercise the 2025 stateless Streamable HTTP fallback used by older clients.
@@ -75,6 +85,52 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
     assert.match(await legacy.text(), /get_book_overview/);
     assert.equal(JSON.stringify(owner), before, "Every read must preserve the entire original book");
   } finally { await a.close(); await b.close(); }
+});
+
+test("MCP 자산 현황은 페이지와 무관하게 같은 기준일의 웹 평가와 미확정을 집계한다", () => {
+  const book = fixture(); book.expenses = [];
+  book.assets = [
+    { ...newAsset("2026-10-01"), ...stamp, id: "known", name: "가상 원화", openingBalance: "10000" },
+    { ...newAsset("2026-10-01"), ...stamp, id: "unknown", name: "가상 미확인", openingBalance: null },
+    { ...newAsset("2026-10-20"), ...stamp, id: "future", name: "가상 미래", openingBalance: "5000" },
+  ];
+  const result = query.assetOverview(book, query.assetOverviewSchema.parse({ asOf: "2026-10-18", limit: 1 }));
+  assert.equal(result.totalKrw, 10000); assert.equal(result.unvaluedCount, 2);
+  assert.equal(result.total, 3); assert.equal(result.nextOffset, 1);
+  assert.equal(result.includesLiabilities, false);
+  assert.equal(query.assetOverview(book, query.assetOverviewSchema.parse({ asOf: "2026-10-20", offset: 2 })).totalKrw, 15000);
+  assert.equal(query.assetOverviewSchema.safeParse({ asOf: "2026-02-30" }).success, false);
+});
+
+test("MCP 대출은 확인 잔액·부분 일정·지원·연체 항목과 페이지를 보존한다", () => {
+  const book = fixture();
+  const loan = structuredClone(exampleLoan);
+  loan.annualRate = null; loan.nextPayment = null;
+  loan.scheduleThrough = "2027-12-25";
+  loan.scheduleBalanceSource = "calculated";
+  loan.repayments[0] = { ...loan.repayments[0], support: "local_government", lateInterest: 2, lateFee: 1, total: loan.repayments[0].total + 3 };
+  loan.events = [{ id: "terms", kind: "terms_change", label: "조건 변경", date: "2026-09-01", time: null, amount: 0, principalAfter: null, note: "가상 조건 변경" }];
+  book.loans = [loan, structuredClone(exampleCreditLoan)];
+  const before = JSON.stringify(book);
+  const result = query.loanOverview(book, query.loanOverviewSchema.parse({ limit: 1 }));
+  assert.equal(result.totalRemainingPrincipal, loan.remainingPrincipal + exampleCreditLoan.remainingPrincipal);
+  assert.equal(result.unknownRateCount, 1); assert.equal(result.unknownNextPaymentCount, 1);
+  assert.equal(result.nextOffset, 1); assert.equal(result.total, 2);
+  assert.equal("repayments" in result.items[0], false);
+  const detail = query.loanDetail(book, { loanId: loan.id });
+  assert.equal(detail.loan.remainingPrincipal, loan.remainingPrincipal);
+  assert.equal(detail.loan.annualRate, null); assert.equal(detail.personalOutOfPocketTotal, null);
+  assert.equal(detail.localGovernmentSupportedTotal, loan.repayments[0].total);
+  assert.equal(detail.recordedRepaymentTotals.interest, loan.repayments[0].interest + 2);
+  const all = query.loanRecords(book, query.loanRecordsSchema.parse({ loanId: loan.id, kind: "schedule", limit: 1 }));
+  assert.equal(all.total, loan.schedule.length); assert.equal(all.undatedCount, 2);
+  assert.equal(all.nextOffset, 1); assert.equal(all.scheduleThrough, "2027-12-25");
+  const dated = query.loanRecords(book, query.loanRecordsSchema.parse({ loanId: loan.id, kind: "schedule", start: "2026-10-01" }));
+  assert.equal(dated.total, 1);
+  const events = query.loanRecords(book, query.loanRecordsSchema.parse({ loanId: loan.id, kind: "events" }));
+  assert.equal(events.items.length, 1);
+  assert.equal(query.getRecord(book, query.recordQuerySchema.parse({ collection: "loans", id: loan.id })).record, loan);
+  assert.equal(JSON.stringify(book), before);
 });
 
 test("MCP query coverage: pages, receipt contents, all operation kinds, cards, currencies and no silent truncation", () => {

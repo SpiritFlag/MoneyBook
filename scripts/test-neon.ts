@@ -7,6 +7,7 @@ import { createNeonBookReader, createNeonRepository } from "../src/lib/neon-repo
 import { newAsset } from "../src/lib/asset";
 import { newExpense } from "../src/lib/expense";
 import { newOperation, newRow, statementRows } from "../src/lib/operations";
+import { exampleLoan } from "../src/lib/loan-sample";
 
 async function main() {
 const testEnv = parseEnv(readFileSync(".env.neon-test.local", "utf8"));
@@ -28,6 +29,13 @@ try {
     b.saveAsset({ ...newAsset(date), name: "Test wallet", kind: "cash", openingBalance: "0" }, walletId, null),
   ]);
   assert.equal((await a.listAssets()).length, 2, "Concurrent first writes must both survive");
+  await Promise.all([
+    a.importLoans([exampleLoan]),
+    b.saveAsset({ ...newAsset(date), name: "Additional test wallet", kind: "cash", openingBalance: "0" }, randomUUID(), null),
+  ]);
+  assert.deepEqual(await b.listLoans(), [exampleLoan], "Concurrent asset writes must preserve imported loans");
+  assert.deepEqual(await a.importLoans([exampleLoan]), { added: 0, total: 1 });
+  assert.deepEqual(await createNeonRepository(other, connection).listLoans(), []);
   const cardId = randomUUID();
   await a.saveCard({ name: "Integration card", issuer: "Test issuer" }, cardId);
   assert.equal((await b.listCards())[0].id, cardId);
@@ -42,6 +50,7 @@ try {
   assert.equal(readOnlyBook.expenses[0].id, id);
   assert.equal(readOnlyBook.operations.length, 1);
   assert.equal(readOnlyBook.cards[0].id, cardId);
+  assert.deepEqual(readOnlyBook.loans, [exampleLoan]);
   assert.equal((await createNeonBookReader(other, connection)()).expenses.length, 0);
   assert.deepEqual(await sql`SELECT revision, payload FROM moneybook.books WHERE owner_id = ${owner}`, beforeRead, "MCP SELECT reader must preserve both revision and payload");
   await b.save(expense, id, null);
