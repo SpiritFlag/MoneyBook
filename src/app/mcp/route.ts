@@ -1,14 +1,15 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { withMcpAuth } from "mcp-handler";
 import { mcpAuthOptions, mcpConfig, oauthIdentity } from "@/lib/mcp-auth";
-import { createReadOnlyMcpHandler } from "@/lib/mcp-server";
+import { createMoneybookMcpHandler } from "@/lib/mcp-server";
 import { createNeonBookReader } from "@/lib/neon-repository";
+import { createNeonBuddyReviews } from "@/lib/neon-buddy-review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const handler = createReadOnlyMcpHandler(userId => createNeonBookReader(userId, process.env.DATABASE_URL ?? "")());
+const handler = createMoneybookMcpHandler(userId => createNeonBookReader(userId, process.env.DATABASE_URL ?? "")(), userId => createNeonBuddyReviews(userId, process.env.DATABASE_URL ?? ""));
 
 async function authenticated(request: Request) {
   let config;

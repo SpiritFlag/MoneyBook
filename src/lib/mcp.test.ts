@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { withMcpAuth } from "mcp-handler";
-import { createReadOnlyMcpHandler } from "./mcp-server";
+import { createMoneybookMcpHandler } from "./mcp-server";
 import { mcpAuthOptions, mcpConfig, mcpMetadataPath, mcpUserId, oauthIdentity, type OAuthAccessToken } from "./mcp-auth";
 import { storedSchema, type Book } from "./expense-repository";
 import { newAsset } from "./asset";
@@ -35,7 +35,7 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
   owner.loans = structuredClone([exampleLoan, exampleCreditLoan]);
   const before = JSON.stringify(owner);
   let reads = 0;
-  const handler = withMcpAuth(createReadOnlyMcpHandler(async user => { reads++; return structuredClone(user === "user_owner" ? owner : outsider); }), async (_, bearer) => {
+  const handler = withMcpAuth(createMoneybookMcpHandler(async user => { reads++; return structuredClone(user === "user_owner" ? owner : outsider); }), async (_, bearer) => {
     if (bearer === "owner") return oauthIdentity(token, bearer, config);
     if (bearer === "other") return oauthIdentity({ ...token, subject: "user_other" }, bearer, config);
     if (bearer === "no-scope") return oauthIdentity({ ...token, scopes: [] }, bearer, config);

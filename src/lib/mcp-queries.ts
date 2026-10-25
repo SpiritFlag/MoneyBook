@@ -34,10 +34,13 @@ export const loanDetailSchema = z.strictObject({ loanId: id });
 export const loanRecordsSchema = ranged({ ...pagination, ...range, loanId: id, kind: z.enum(["repayments", "schedule", "events"]) });
 
 export const mcpGuide = {
-  readOnly: true,
+  readOnly: false,
+  financialRecordsReadOnly: true,
+  allowedWrites: ["save_buddy_review"],
   timezone: "Asia/Seoul",
   bookDayStartsAt: "05:00",
   rules: [
+    "Buddy monthly evaluations: get_buddy_review pages all monthly consumption entries and existing free-form tags/comments. Only save_buddy_review writes evaluations. It cannot change financial records. Follow writeContract and preserve the read cutoff.",
     "Only the authenticated Clerk user's current MoneyBook is visible. Legacy archived data is a separate book.",
     "Persisted amounts are decimal strings in their original currency. Derived amounts are integer minor units; KRW has 0 decimal places, USD/EUR have 2. Never add different currencies together.",
     "null means unknown, not zero. Unknown times are never inferred. Foreign currency consumption without a fixed KRW valuation is excluded from KRW totals and counted as pending.",

@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Plus, Wallet, ArrowLeftRight, CreditCard, HandCoins, Bus, Bookmark, CircleArrowDown, Landmark } from "lucide-react";
+import { BookOpen, CalendarDays, Plus, Wallet, ArrowLeftRight, CreditCard, HandCoins, Bus, Bookmark, CircleArrowDown, Landmark, MessageCircle } from "lucide-react";
 const links = [
   { href: "/", label: "일일 내역", icon: BookOpen }, { href: "/month", label: "월간 소비", icon: CalendarDays },
+  { href: "/buddy", label: "버디의 평가", icon: MessageCircle },
   { href: "/transactions/new", label: "지출 기록", icon: Plus }, { href: "/assets", label: "자산 현황", icon: Wallet },
   { href: "/loans", label: "대출 노트", icon: Landmark },
   { href: "/income", label: "수입·입금", icon: CircleArrowDown }, { href: "/transfers", label: "이동·충전", icon: ArrowLeftRight },
