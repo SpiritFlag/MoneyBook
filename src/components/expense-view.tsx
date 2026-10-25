@@ -9,7 +9,7 @@ import { ExpenseForm } from "./expense-form";
 import { ExpenseReceipt } from "./expense-receipt";
 import { useBook } from "@/lib/use-operations";
 import { netConsumption, cancelled, sharedRemaining, insuranceRecovered, operationLabels } from "@/lib/operations";
-import { dominantCategory, categories, ownMinor } from "@/lib/expense";
+import { dominantCategory, categories, ownMinor, consumptionMinor, hasLoanPrincipal } from "@/lib/expense";
 import { bookDate, parseDateQuery } from "@/lib/date";
 
 export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }) {
@@ -28,7 +28,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
   const fixedCurrency = book.gameCurrencies?.find(c => c.code === item.currency);
   const linked = book.operations.filter(o => o.sourceId === id || o.parentId === id || o.selected.includes(id) || o.allocations.some(a => a.targetId === id));
   const differentUse = item.useKind === "period" || item.useDate !== item.paymentDate || item.useTime !== item.time;
-  const personal = item.shared || recovered || isCancelled;
+  const personal = item.shared || recovered || isCancelled || hasLoanPrincipal(item);
   return <>
     <header className="mb-6 flex items-center justify-between gap-3"><Link className="text-sm text-muted-foreground hover:text-primary" href={`/?date=${back}`}>← 일일 내역으로</Link><Button asChild variant="secondary"><Link href={`/transactions/${id}/edit`}>수정하기</Link></Button></header>
     {query.get("saved") === "1" ? <p role="status" className="mb-4 rounded-xl bg-secondary px-5 py-3 text-sm text-primary">저장했어요. 내역과 소비 합계에 반영했어요.</p> : null}
@@ -39,12 +39,13 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
           <h1 className="expense-title">{item.title}</h1>
           <p className="mt-4 text-sm text-muted-foreground">{item.paymentDate}{item.time ? ` · ${item.time}` : item.useKind === "period" ? "" : " · 시각 미확인"}</p>
           <p aria-label="전체 결제 금액" className={`expense-total ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>{formatMoney(item.paidAmount, item.currency)}</p>
-          {personal ? <div className="mt-4 space-y-1 text-sm"><p className="font-medium text-primary">{isCancelled ? "전액 취소 · 내 소비 0원" : `${recovered ? "보험금 반영 후 " : ""}내 소비 ${krw !== null ? formatMinor(krw, "KRW") : formatMinor(ownMinor(item), item.currency)}`}</p>{item.shared && item.currency !== "KRW" ? <p className="text-xs text-muted-foreground">내 몫 {formatMinor(ownMinor(item), item.currency)}</p> : null}</div> : null}
+          {personal ? <div className="mt-4 space-y-1 text-sm"><p className="font-medium text-primary">{isCancelled ? "전액 취소 · 내 소비 0원" : `${recovered ? "보험금 반영 후 " : ""}내 소비 ${krw !== null ? formatMinor(krw, "KRW") : formatMinor(consumptionMinor(item), item.currency)}`}</p>{item.shared && item.currency !== "KRW" ? <p className="text-xs text-muted-foreground">내 몫 {formatMinor(ownMinor(item), item.currency)}</p> : null}</div> : null}
           {item.currency !== "KRW" ? <p className="mt-3 text-sm text-muted-foreground">{item.krwAmount === null ? "원화 미확정 · 합계에서 분리" : `${personal ? "전체 결제 원화 " : "원화 "}${formatMoney(item.krwAmount, "KRW")}`}</p> : null}
         </div>
         <Image src={category.image} alt="" width={360} height={360} loading="eager" sizes="(max-width: 640px) 42vw, 340px" className="expense-character" />
       </header>
       <div className="expense-body">
+        {hasLoanPrincipal(item) ? <p className="rounded-xl bg-secondary/50 p-4 text-sm leading-6">대출 원금은 소비에서 제외하고 실제 결제액은 원장에 반영해요. 이자는 대출 이외의 카테고리로 기록해 주세요.</p> : null}
         <ExpenseReceipt expense={item} />
         <section className="expense-payment" aria-label="결제와 이용 정보">
           <h2 className="text-lg font-medium">{item.assetId ? <Link className="text-primary hover:underline" href={`/assets/${item.assetId}`}>{item.paymentMethod} · 원장 보기 →</Link> : item.paymentMethod}</h2>

@@ -6,6 +6,7 @@ import {
   newExpense,
   ownKrw,
   ownMinor,
+  consumptionKrw,
   toMinor,
   receiptSummary,
   type Expense,
@@ -20,6 +21,7 @@ export const incomeCategories = {
   financial: { label: "금융소득", image: "/characters/income_financial.png" },
   benefit: { label: "혜택·지원금", image: "/characters/income_benefit.png" },
   other: { label: "기타 수입", image: "/characters/income_other.png" },
+  loan: { label: "대출", image: "/characters/income_loan.png" },
 } as const;
 export const operationLabels = {
   income: "수입·입금",
@@ -86,7 +88,7 @@ export const operationInputSchema = z.object({
     "statement",
     "template",
   ]),
-  incomeCategory: z.enum(["employment", "financial", "benefit", "other"]).default("other"),
+  incomeCategory: z.enum(["employment", "financial", "benefit", "other", "loan"]).default("other"),
   title: z.string().trim().min(1, "기록 이름을 입력해 주세요.").max(120),
   date,
   time,
@@ -142,6 +144,10 @@ export const operationSchema = operationInputSchema.safeExtend({
   updatedAt: z.string(),
 });
 export type Operation = z.infer<typeof operationSchema>;
+// Actual deposits remain in operationPostings; this amount is for income totals only.
+export function incomeMinor(op: OperationInput): number {
+  return op.kind === "income" && op.incomeCategory !== "loan" ? toMinor(op.amount, op.currency) ?? 0 : 0;
+}
 export type BookData = {
   gameCurrencies?: GameCurrency[];
   cards?: Card[];
@@ -219,7 +225,7 @@ export function insuranceRecovered(id: string, ops: readonly Operation[]) {
     .reduce((s, a) => s + (toMinor(a.amount, "KRW") ?? 0), 0);
 }
 export function netConsumption(e: Expense, ops: readonly Operation[]) {
-  const original = ownKrw(e);
+  const original = consumptionKrw(e);
   return cancelled(e.id, ops)
     ? 0
     : original === null
@@ -490,6 +496,9 @@ export function consumptionRecords(
         ? e
         : {
             ...e,
+            // The derived payment amount already excludes principal. Remove its
+            // weights to avoid excluding it twice in daily/monthly consumption.
+            items: e.category === "mixed" ? e.items.filter(item => item.category !== "loan") : e.items,
             currency: "KRW" as const,
             paidAmount: String(net),
             shared: false,

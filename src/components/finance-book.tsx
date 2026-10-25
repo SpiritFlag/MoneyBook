@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useBook } from "@/lib/use-operations";
 import {
   operationLabels,
+  incomeCategories,
   transferDiscounts,
   transferDiscountTotal,
   transferOrderWarning,
@@ -210,7 +211,7 @@ export function FinanceBook({
                 >
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">
-                      {operationLabels[o.kind]} · {o.date}
+                      {operationLabels[o.kind]} · {o.date}{o.kind === "income" ? ` · ${incomeCategories[o.incomeCategory].label}${o.incomeCategory === "loan" ? " · 수입 제외" : ""}` : ""}
                       {o.kind === "statement"
                         ? ` · ${o.payment ? "납부 완료" : o.verified ? "검증 완료 · 납부 대기" : "임시저장 · 대조 이어하기"}`
                         : ""}
@@ -359,6 +360,7 @@ export function RecordPage({
               </Link>
             </Button>
           ) : null}
+          {op.kind === "income" ? <p className="text-sm text-primary">{incomeCategories[op.incomeCategory].label}{op.incomeCategory === "loan" ? " · 수입 제외 · 자산 원장에만 입금 반영" : ""}</p> : null}
           {op.kind === "transit" && op.journey !== undefined ? <TransitJourney legs={op.journey} /> : null}
           {op.kind === "transit" && op.transitPaymentDate ? <p className="text-sm text-muted-foreground">결제일 {op.transitPaymentDate} · 교통 소비는 이용일 {op.date}에 반영</p> : null}
           {op.kind === "transit" && op.transitFunding ? <section className="rounded-xl bg-secondary/50 p-4 text-sm"><h2 className="font-semibold">교통카드 자동 충전 · 자산 이동</h2><p className="mt-2">{book.assets.find(a => a.id === op.transitFunding?.fromId)?.name} → {book.assets.find(a => a.id === op.assetId)?.name} · {formatMoney(op.transitFunding.amount, "KRW")}</p><p className="mt-2 text-xs text-muted-foreground">{op.transitFunding.date} · {op.transitFunding.time ?? "시각 미확인"} · 교통 소비에서 제외</p></section> : null}

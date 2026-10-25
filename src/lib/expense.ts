@@ -27,6 +27,7 @@ export const categories = {
   secret: { label: "비밀", image: "/characters/expense_secret.png" },
   study: { label: "공부", image: "/characters/expense_study.png" },
   other: { label: "기타", image: "/characters/expense_other.png" },
+  loan: { label: "대출", image: "/characters/expense_loan.png" },
   mixed: { label: "혼합", image: "/characters/expense_other.png" },
 } as const;
 export type Category = keyof typeof categories;
@@ -162,10 +163,18 @@ export function dominantCategory(value: ExpenseInput): ItemCategory {
 }
 // 전체 할인·가산, 내 몫, 원화 환산·월 배분은 상품 소계 비율로 나눈다.
 // BigInt 최대 잔여 방식으로 소수 오차 없이 배분하며 합계를 정확히 보존한다.
-export function categoryAmounts(value: ExpenseInput, total: number | null = ownKrw(value)): { category: Category; amount: number | null }[] {
+export function categoryAmounts(value: ExpenseInput, total: number | null = consumptionKrw(value)): { category: Category; amount: number | null }[] {
+  if (value.category === "loan") return [];
   if (value.category !== "mixed") return [{ category: value.category, amount: total }];
-  const weights = categorySubtotals(value);
-  if (!weights.length) return [{ category: "mixed", amount: total }];
+  return allocateCategories(categorySubtotals(value).filter(row => row.category !== "loan"), total);
+}
+export function receiptCategoryAmounts(value: ExpenseInput) {
+  return allocateCategories(categorySubtotals(value), Math.max(0, receiptSummary(value).sum));
+}
+// Allocate the full personal/payment amount before excluding principal. This keeps
+// discounts, shared payments and foreign-currency rounding consistent with receipts.
+function allocateCategories(weights: { category: ItemCategory; amount: number }[], total: number | null): { category: ItemCategory; amount: number | null }[] {
+  if (!weights.length) return [];
   if (total === null) return weights.map(row => ({ category: row.category, amount: null }));
   const denominator = weights.reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
   if (denominator === BigInt(0)) return weights.map((row, index) => ({ category: row.category, amount: index === 0 ? total : 0 }));
@@ -176,6 +185,23 @@ export function categoryAmounts(value: ExpenseInput, total: number | null = ownK
   const left = total - shares.reduce((sum, row) => sum + row.amount, 0);
   [...shares].sort((a, b) => a.remainder > b.remainder ? -1 : a.remainder < b.remainder ? 1 : 0).slice(0, left).forEach(row => row.amount++);
   return shares.map(({ category, amount }) => ({ category, amount }));
+}
+export function hasLoanPrincipal(value: ExpenseInput): boolean {
+  return value.category === "loan" || (value.category === "mixed" && value.items.some(item => item.category === "loan"));
+}
+function withoutPrincipal(value: ExpenseInput, total: number | null): number | null {
+  if (value.category === "loan") return 0;
+  if (value.category !== "mixed" || !hasLoanPrincipal(value)) return total;
+  const weights = categorySubtotals(value);
+  if (!weights.some(row => row.category !== "loan" && row.amount > 0)) return 0;
+  if (total === null) return null;
+  return allocateCategories(weights, total).reduce((sum, row) => sum + (row.category === "loan" ? 0 : row.amount ?? 0), 0);
+}
+export function consumptionMinor(value: ExpenseInput): number {
+  return withoutPrincipal(value, ownMinor(value)) ?? 0;
+}
+export function consumptionKrw(value: ExpenseInput): number | null {
+  return withoutPrincipal(value, ownKrw(value));
 }
 export function ownMinor(value: ExpenseInput): number {
   return toMinor(value.shared ? value.ownAmount ?? "0" : value.paidAmount, value.currency) ?? 0;
@@ -231,16 +257,16 @@ export function orderAroundReferences<T extends { id: string }>(rows: T[], refer
 }
 export function daySummary(values: Expense[], date: string) {
   const consumption = values.filter((value) => value.useKind === "once" && bookDate(value.useDate, value.useTime) === date);
-  return { total: consumption.reduce((sum, value) => sum + (ownKrw(value) ?? 0), 0), pending: consumption.filter((value) => ownKrw(value) === null).length };
+  return { total: consumption.reduce((sum, value) => sum + (consumptionKrw(value) ?? 0), 0), pending: consumption.filter((value) => consumptionKrw(value) === null).length };
 }
 export function monthAmount(value: ExpenseInput, month: string): number | null | undefined {
   const start = (value.useKind === "once" ? bookDate(value.useDate, value.useTime) : value.useDate).slice(0, 7);
-  if (value.useKind === "once" || value.allocation === "start") return start === month ? ownKrw(value) : undefined;
+  if (value.useKind === "once" || value.allocation === "start") return start === month ? consumptionKrw(value) : undefined;
   const [year, m] = month.split("-").map(Number);
   const [sy, sm] = start.split("-").map(Number);
   const offset = (year - sy) * 12 + m - sm;
   if (offset < 0 || offset > 11) return undefined;
-  const amount = ownKrw(value);
+  const amount = consumptionKrw(value);
   return amount === null ? null : Math.floor(amount / 12) + (offset === 0 ? amount % 12 : 0);
 }
 

@@ -1,13 +1,13 @@
 import { bookDate, bookTimeOrder, parseDateQuery } from "./date";
 import { dailyExpenses, dayTime, orderAroundReferences, type Expense, type ExpenseInput } from "./expense";
-import { operationExpenses, type Operation, type OperationRow, type BookData } from "./operations";
-export type DailyRecord = { id: string; expense: Expense; income?: never; transfer?: never } | { id: string; income: Operation; expense?: never; transfer?: never } | { id: string; transfer: { operation: Operation; row: OperationRow; index: number }; expense?: never; income?: never };
+import { operationExpenses, incomeMinor, type Operation, type OperationRow, type BookData } from "./operations";
+export type DailyRecord = { id: string; expense: Expense; income?: never; transfer?: never } | { id: string; income: Operation; incomeAmountMinor: number; expense?: never; transfer?: never } | { id: string; transfer: { operation: Operation; row: OperationRow; index: number }; expense?: never; income?: never };
 export function dailyIncomes(operations: readonly Operation[], date: string) {
   return operations.filter(o => o.kind === "income" && bookDate(o.date, o.time) === date);
 }
 export function dailyRecords(expenses: readonly Expense[], operations: readonly Operation[], date: string, includeReferenceRows = false): DailyRecord[] {
   const transfers: DailyRecord[] = operations.filter(o => o.kind === "transfer").flatMap(operation => operation.rows.flatMap((row, index) => bookDate(row.date, row.time) === date ? [{ id: `transfer:${operation.id}/${row.id}`, transfer: { operation, row, index } }] : []));
-  const rows: DailyRecord[] = [...expenses.map(expense => ({ id: expense.id, expense })), ...dailyIncomes(operations, date).map(income => ({ id: income.id, income })), ...transfers];
+  const rows: DailyRecord[] = [...expenses.map(expense => ({ id: expense.id, expense })), ...dailyIncomes(operations, date).map(income => ({ id: income.id, income, incomeAmountMinor: incomeMinor(income) })), ...transfers];
   const time = (r: DailyRecord) => r.transfer ? r.transfer.row.time : r.income ? r.income.time : dayTime(r.expense, date);
   const createdAt = (r: DailyRecord) => r.transfer ? r.transfer.operation.createdAt : r.income ? r.income.createdAt : r.expense.createdAt;
   const rank = (r: DailyRecord) => r.transfer ? r.transfer.operation.parentId ? -1 : r.transfer.index : r.expense?.sortOrder ?? 0;

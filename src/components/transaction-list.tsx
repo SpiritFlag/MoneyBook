@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
 import { incomeCategories, netConsumption, cancelled, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
-import { dominantCategory, categories, dailyExpensePresentation, ownMinor, type Expense } from "@/lib/expense";
+import { dominantCategory, categories, dailyExpensePresentation, consumptionMinor, hasLoanPrincipal, type Expense } from "@/lib/expense";
 
 function stamp(date: string, time: string | null) {
   return `${date.replaceAll("-", ".")}${time ? ` ${time}` : ""}`;
@@ -28,7 +28,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
       if (row.income) {
         const income = row.income;
         const category = incomeCategories[income.incomeCategory ?? "other"];
-        return <li key={income.id} className="px-2 sm:px-3"><Link href={`/records/${income.id}?from=${date}`} aria-label={`${income.title} 상세 보기`} className="transaction-link group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20"><Image src={category.image} alt="" width={80} height={80} className="h-16 w-16 object-contain sm:h-20 sm:w-20" /></div><div className="min-w-0 flex-1"><p className="mb-1 text-xs text-muted-foreground">{category.label} · 입금 {income.date} {income.time ?? "시각 미확인"}</p><h3 className="text-sm font-semibold sm:text-base">{income.title}</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">{assets.find(a => a.id === income.assetId)?.name ?? "입금 자산"}</p></div><p className="shrink-0 text-right text-base font-semibold text-primary tabular-nums sm:text-lg">+{formatMoney(income.amount, income.currency)}</p><ChevronRight aria-hidden="true" size={16} className="hidden shrink-0 text-primary/35 transition-colors group-hover:text-primary sm:block" /></Link></li>;
+        return <li key={income.id} className="px-2 sm:px-3"><Link href={`/records/${income.id}?from=${date}`} aria-label={`${income.title} 상세 보기`} className="transaction-link group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20"><Image src={category.image} alt="" width={80} height={80} className="h-16 w-16 object-contain sm:h-20 sm:w-20" /></div><div className="min-w-0 flex-1"><p className="mb-1 text-xs text-muted-foreground">{category.label}{income.incomeCategory === "loan" ? " · 수입 제외" : ""} · 입금 {income.date} {income.time ?? "시각 미확인"}</p><h3 className="text-sm font-semibold sm:text-base">{income.title}</h3><p className="mt-1 text-xs text-muted-foreground sm:text-sm">{assets.find(a => a.id === income.assetId)?.name ?? "입금 자산"}</p></div><p className="shrink-0 text-right text-base font-semibold text-primary tabular-nums sm:text-lg">+{formatMoney(income.amount, income.currency)}</p><ChevronRight aria-hidden="true" size={16} className="hidden shrink-0 text-primary/35 transition-colors group-hover:text-primary sm:block" /></Link></li>;
       }
       const transaction = row.expense;
       const category = { ...categories[dominantCategory(transaction)], label: categories[transaction.category].label };
@@ -43,11 +43,12 @@ export function TransactionList({ transactions, date, operations = [], assets = 
         <div className="min-w-0 flex-1">
           <h3 className="break-words text-sm font-semibold sm:text-base">{transaction.title}</h3>
           <p className="mt-2 text-xs leading-6 text-muted-foreground"><span className="tabular-nums">{stamp(display.date, display.time)}</span><span className="mx-2" aria-hidden="true">·</span>{transaction.paymentMethod}<span className="mx-2" aria-hidden="true">·</span>{category.label}</p>
+          {hasLoanPrincipal(transaction) ? <p className="mt-1 text-xs text-primary">대출 원금 소비 제외 · 결제 {formatMoney(transaction.paidAmount, transaction.currency)}</p> : null}
           {display.kind !== "normal" ? <p className="transaction-context mt-2 inline-block max-w-full rounded-lg px-3 py-2 text-xs leading-5">{display.kind === "recurring" ? `정기결제　이용 ${transaction.useDate.replaceAll("-", ".")} → ${transaction.useEnd?.replaceAll("-", ".") ?? "종료일 미확인"}` : display.kind === "usage-only" ? `결제 ${stamp(transaction.paymentDate, transaction.time)}` : `이용 ${stamp(transaction.useDate, transaction.useTime)}`}</p> : null}
           {cancelled(transaction.id, operations) ? <p className="mt-1 text-xs text-amber-800">전액 취소</p> : insuranceRecovered(transaction.id, operations) > 0 ? <p className="mt-1 text-xs text-primary">보험금 반영</p> : null}
         </div>
         <div className="shrink-0 text-right tabular-nums">
-          <p className="text-base font-semibold sm:text-lg">{cancelled(transaction.id, operations) ? formatMinor(0, transaction.currency) : insuranceRecovered(transaction.id, operations) > 0 ? formatMinor(netConsumption(transaction, operations) ?? 0, "KRW") : formatMinor(ownMinor(transaction), transaction.currency)}</p>
+          <p className="text-base font-semibold sm:text-lg">{cancelled(transaction.id, operations) ? formatMinor(0, transaction.currency) : insuranceRecovered(transaction.id, operations) > 0 ? formatMinor(netConsumption(transaction, operations) ?? 0, "KRW") : formatMinor(consumptionMinor(transaction), transaction.currency)}</p>
           {transaction.currency !== "KRW" ? <p className="mt-1 text-sm text-primary">{won === null ? "원화 미확정" : `원화 ${formatMinor(won, "KRW")}`}</p> : null}
           {shared ? <><p className="mt-1 text-xs font-medium text-primary">본인 소비</p><p className="mt-1 text-xs text-muted-foreground">결제 {formatMoney(transaction.paidAmount, transaction.currency)}</p></> : null}
         </div>

@@ -181,7 +181,7 @@ export function OperationForm({
                     onChange={(amount) => change({ ...value, amount })}
                   />
                 ) : null}
-                {kind === "income" ? <Field label="수입 종류"><select className="form-control" value={value.incomeCategory} onChange={e => change({ ...value, incomeCategory: e.target.value as OperationInput["incomeCategory"] })}>{Object.entries(incomeCategories).map(([key, category]) => <option key={key} value={key}>{category.label}</option>)}</select></Field> : null}
+                {kind === "income" ? <Field label="수입 종류"><select className="form-control" value={value.incomeCategory} onChange={e => change({ ...value, incomeCategory: e.target.value as OperationInput["incomeCategory"] })}>{Object.entries(incomeCategories).map(([key, category]) => <option key={key} value={key}>{category.label}</option>)}</select>{value.incomeCategory === "loan" ? <p className="mt-2 text-xs leading-6 text-primary">대출금 입금은 자산 원장에 반영하고 수입 집계에서 제외해요.</p> : null}</Field> : null}
                 {["income", "recovery"].includes(kind) ? (
                   <Field label="통화">
                     <select

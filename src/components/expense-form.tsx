@@ -11,7 +11,7 @@ import { DemoNotice } from "@/components/ledger-state";
 import { Field, FormSection } from "@/components/form-fields";
 import { ReceiptEditor } from "@/components/receipt-editor";
 import { ReceiptSummary } from "@/components/receipt-summary";
-import { changeExpenseDate, changeExpenseTime, followsPaymentDate, followsPaymentTime, categories, expenseInputSchema, newExpense, ownKrw, ownMinor, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
+import { changeExpenseDate, changeExpenseTime, followsPaymentDate, followsPaymentTime, categories, expenseInputSchema, newExpense, consumptionKrw, consumptionMinor, hasLoanPrincipal, toMinor, type Currency, type Expense, type ExpenseInput } from "@/lib/expense";
 import { useCards } from "@/lib/use-cards";
 import Link from "next/link";
 import { useAssets } from "@/lib/use-assets";
@@ -72,7 +72,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   }
   const card = value.paymentKind === "card";
   const fixedCurrency = currencyDefinitions.data?.find(c => c.code === value.currency);
-  const personalKrw = ownKrw(value);
+  const personalKrw = consumptionKrw(value);
   return <>
     <header className="mb-7 flex flex-wrap items-center justify-between gap-3"><div><Button type="button" variant="ghost" size="sm" className="mb-3 -ml-3 text-muted-foreground" onClick={cancel}><ArrowLeft size={16} />{existing ? "상세로 돌아가기" : "일일 내역으로"}</Button><h1 className="text-3xl font-bold tracking-tight">{existing ? "지출 수정" : "지출 기록"}</h1><p className="mt-2 text-sm text-muted-foreground">결제한 총액부터, 기억나는 이야기까지.</p></div><span className="demo-badge">나의 장부</span></header>
     <form noValidate onSubmit={async (event) => {
@@ -130,7 +130,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
           <FormSection number="05" title="메모"><Field label="기억해 둘 내용 (선택)"><textarea lang="ko" inputMode="text" className="form-control min-h-24 resize-y" maxLength={2000} placeholder="영수증에서 확인할 내용이나 거래의 맥락을 남겨보세요." value={value.memo} onChange={(e) => field("memo", e.target.value)} /></Field></FormSection>
         </div>
         <aside className="min-w-0 xl:sticky xl:top-7 xl:self-start">
-          <div className="daily-summary rounded-3xl p-6"><h2 className="text-sm font-semibold">저장 전 확인</h2><dl className="mt-5 space-y-4"><div><dt className="text-xs text-muted-foreground">실제 결제</dt><dd className="mt-1 break-words text-2xl font-semibold tabular-nums">{formatMoney(value.paidAmount || "0", value.currency)}</dd></div><div><dt className="text-xs text-muted-foreground">내 소비</dt><dd className="mt-1 break-words text-xl font-semibold text-primary tabular-nums">{formatMinor(ownMinor(value), value.currency)}</dd></div></dl>{value.currency !== "KRW" ? <p className="mt-3 text-xs text-muted-foreground">{personalKrw === null ? "원화 미확정 · 원화 합계에서 분리" : `원화 소비 ${formatMinor(personalKrw, "KRW")}`}</p> : null}<p className="mt-4 text-xs leading-5 text-muted-foreground">{value.useKind === "period" ? "월간 정기지출에 반영" : `${value.useDate ? bookDate(value.useDate, value.useTime) : "이용일 미입력"} 소비에 반영 · 05시 기준`}</p></div>
+          <div className="daily-summary rounded-3xl p-6">{hasLoanPrincipal(value) ? <p className="mb-4 text-xs leading-6 text-primary">대출 원금은 소비에서 제외해요. 이자는 대출 이외의 카테고리로 기록해 주세요.</p> : null}<h2 className="text-sm font-semibold">저장 전 확인</h2><dl className="mt-5 space-y-4"><div><dt className="text-xs text-muted-foreground">실제 결제</dt><dd className="mt-1 break-words text-2xl font-semibold tabular-nums">{formatMoney(value.paidAmount || "0", value.currency)}</dd></div><div><dt className="text-xs text-muted-foreground">내 소비</dt><dd className="mt-1 break-words text-xl font-semibold text-primary tabular-nums">{formatMinor(consumptionMinor(value), value.currency)}</dd></div></dl>{value.currency !== "KRW" ? <p className="mt-3 text-xs text-muted-foreground">{personalKrw === null ? "원화 미확정 · 원화 합계에서 분리" : `원화 소비 ${formatMinor(personalKrw, "KRW")}`}</p> : null}<p className="mt-4 text-xs leading-5 text-muted-foreground">{value.useKind === "period" ? "월간 정기지출에 반영" : `${value.useDate ? bookDate(value.useDate, value.useTime) : "이용일 미입력"} 소비에 반영 · 05시 기준`}</p></div>
           <div className="mt-4"><ReceiptSummary expense={value} /></div>
           <div ref={errorRef} tabIndex={-1} role={error ? "alert" : undefined} className={error ? "mt-4 rounded-xl bg-red-50 p-4 text-sm leading-6 text-destructive" : ""}>{error}</div>
           <Button type="submit" size="lg" disabled={busy} className="mt-5 w-full"><Save size={16} />{busy ? "저장 중…" : existing ? "수정 저장" : "저장하고 상세 보기"}</Button>

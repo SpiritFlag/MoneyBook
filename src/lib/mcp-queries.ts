@@ -7,7 +7,7 @@ import { currencyOptions } from "./currency";
 import { bookDate, parseDateQuery, todayInBook, todayInSeoul } from "./date";
 import { dailyRecords } from "./daily-records";
 import { categories, categoryAmounts, dailyExpenses, daySummary, monthAmount, receiptSummary } from "./expense";
-import { consumptionRecords, netConsumption, operationLabels, operationPostings, sharedRemaining, tollRemaining } from "./operations";
+import { consumptionRecords, netConsumption, incomeMinor, operationLabels, operationPostings, sharedRemaining, tollRemaining } from "./operations";
 import { loanSummary, recordedLoanTotals } from "./loan";
 
 const date = z.string().refine(v => parseDateQuery(v) !== null, "Use a valid YYYY-MM-DD date (1900–9999).");
@@ -40,6 +40,7 @@ export const mcpGuide = {
   timezone: "Asia/Seoul",
   bookDayStartsAt: "05:00",
   rules: [
+    "The loan category denotes principal: incomeCategory=loan deposits are excluded from income (incomeAmountMinor=0). Expense category=loan and mixed receipt items with category=loan are excluded from consumption. Interest uses another expense category. Full cash flow remains in asset ledgers/card bills. Loan notes remain manually maintained and independent.",
     "Buddy monthly evaluations: get_buddy_review pages all monthly consumption entries and existing free-form tags/comments. Only save_buddy_review writes evaluations. It cannot change financial records. Follow writeContract and preserve the read cutoff.",
     "Only the authenticated Clerk user's current MoneyBook is visible. Legacy archived data is a separate book.",
     "Persisted amounts are decimal strings in their original currency. Derived amounts are integer minor units; KRW has 0 decimal places, USD/EUR have 2. Never add different currencies together.",
@@ -120,6 +121,10 @@ export function getRecord(book: Book, query: z.infer<typeof recordQuerySchema>) 
   if (query.collection === "expenses") {
     const expense = found(book.expenses.find(e => e.id === query.id));
     return { record: expense, receipt: receiptSummary(expense), netConsumptionKrw: netConsumption(expense, book.operations), linkedOperations: page(book.operations.filter(o => o.sourceId === query.id || o.parentId === query.id || o.allocations.some(a => a.targetId === query.id) || o.selected.includes(query.id) || o.deferred.includes(query.id)), query) };
+  }
+  if (query.collection === "operations") {
+    const record = found(book.operations.find(r => r.id === query.id));
+    return { record, ...(record.kind === "income" ? { incomeAmountMinor: incomeMinor(record) } : {}) };
   }
   const record = found(book[query.collection].find(r => r.id === query.id));
   return { record };

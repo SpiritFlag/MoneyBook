@@ -22,7 +22,7 @@ export function ReceiptEditor({ value, onChange, disabled = false }: { value: Ex
       <Field label="명세 통화·재화"><select className="form-control" value={value.receiptCurrency} onChange={(e) => onChange({ ...value, receiptCurrency: e.target.value as Currency })}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>
       {value.currency !== value.receiptCurrency ? <Field label="명세 대조 총액" hint="모르면 비워 두세요. 서로 다른 통화끼리 빼지 않아요."><input className="form-control" inputMode="decimal" placeholder="미확인" value={value.receiptTotal ?? ""} onChange={(e) => onChange({ ...value, receiptTotal: e.target.value || null })} /></Field> : null}
     </div>
-    {value.category === "mixed" ? <p className="rounded-xl bg-secondary/50 p-4 text-sm leading-6">상품마다 카테고리를 선택해 주세요. 정확한 분류를 위해 명세 합계를 맞춘 뒤 저장해요. 전체 할인·가산과 본인 부담액은 상품 소계 비율로 나눠요.</p> : null}
+    {value.category === "mixed" ? <p className="rounded-xl bg-secondary/50 p-4 text-sm leading-6">상품마다 카테고리를 선택해 주세요. 정확한 분류를 위해 명세 합계를 맞춘 뒤 저장해요. 전체 할인·가산과 본인 부담액은 상품 소계 비율로 나눠요. 대출 원금은 대출 카테고리로, 이자는 대출 이외의 카테고리로 선택해 주세요. 대출 항목은 소비에서 제외해요.</p> : null}
     {value.items.length === 0 ? <p className="rounded-xl bg-background/70 px-4 py-6 text-center text-sm leading-6 text-muted-foreground">명세 없이도 저장할 수 있어요.<br />확인한 상품이 있다면 아래에서 추가해 주세요.</p> : null}
     {value.items.length > 1 ? <p className="text-xs text-muted-foreground">상품의 ⠿ 손잡이를 잡고 위아래로 끌어 순서를 바꿔보세요.</p> : null}
     <DragDropProvider onDragEnd={event => {
