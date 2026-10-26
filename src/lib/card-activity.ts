@@ -1,6 +1,6 @@
 import type { Card } from "./card";
 import { toMinor, type Currency } from "./expense";
-import { cardAmount, type BookData, type Operation } from "./operations";
+import { cancelled, cancellationAmount, cardAmount, type BookData, type Operation } from "./operations";
 
 export type CardActivity = {
   id: string;
@@ -13,6 +13,7 @@ export type CardActivity = {
   href: string;
   topup: boolean;
   cancelled: boolean;
+  cancelledAmount?: number;
   statement?: Operation;
   draft?: Operation;
 };
@@ -22,7 +23,7 @@ export function cardActivity(card: Card, book: BookData, start = "", end = ""): 
   const statements = book.operations.filter(op => op.kind === "statement" && op.card === card.name)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const status = (id: string) => ({
-    cancelled: book.operations.some(op => op.kind === "cancel" && op.sourceId === id),
+    cancelled: cancelled(id, book.operations),
     statement: statements.find(op => op.verified && op.selected.includes(id)),
     draft: statements.find(op => !op.verified && op.selected.includes(id)),
   });
@@ -31,7 +32,7 @@ export function cardActivity(card: Card, book: BookData, start = "", end = ""): 
       : e.paymentKind === "card" && e.paymentMethod === card.name)
     .map(e => ({ id: e.id, title: e.title, date: e.paymentDate, time: e.time,
       amount: e.paidAmount, currency: e.currency, krwAmount: cardAmount(e),
-      href: `/transactions/${e.id}`, topup: false, ...status(e.id) }));
+      href: `/transactions/${e.id}`, topup: false, cancelledAmount: cancellationAmount(e, book.operations), ...status(e.id) }));
   const topups: CardActivity[] = book.operations.filter(op => op.kind === "transfer").flatMap(op => op.rows
     .filter(row => card.kind === "debit" ? row.debitCardId === card.id : row.cardId === card.id)
     .map(row => {

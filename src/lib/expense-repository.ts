@@ -8,7 +8,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import { expenseInputSchema, expenseSchema, type Expense, type ExpenseInput } from "./expense";
 import { assetInputSchema, assetSchema, type AssetInput, type Asset } from "./asset";
-import { operationInputSchema, operationSchema, normalizeTransitOperation, validateOperations, operationPostings, newOperation, newRow, type Operation, type OperationInput } from "./operations";
+import { operationInputSchema, operationSchema, normalizeTransitOperation, validateOperations, operationPostings, statementRows, statementTotal, newOperation, newRow, type Operation, type OperationInput } from "./operations";
 import { seedExpenses } from "./seed-expenses";
 import { loanSampleSchema, loanBatchSchema, type LoanSample } from "./loan";
 
@@ -156,9 +156,33 @@ export function createBookRepository(storage: BookStorage) {
       if (previous && previous.revision !== revision) throw new RepositoryError("다른 화면에서 수정됐어요. 최신 기록을 다시 열어 주세요.", 409);
       if (previous && previous.kind !== input.kind) throw new RepositoryError("기록 종류는 수정할 수 없어요.", 400);
       if (previous?.parentId || input.parentId) throw new RepositoryError("결제와 연결한 충전은 원래 지출의 수정 화면에서 함께 수정해 주세요.", 400);
+      if (input.kind === "cancel" && input.sourceRevision !== undefined && book.expenses.find(e => e.id === input.sourceId)?.revision !== input.sourceRevision) throw new RepositoryError("원지출이 변경됐어요. 최신 거래에서 취소를 다시 입력해 주세요.", 409);
+      if (input.kind === "cancel" && input.cancelRoute === "exclude" && book.operations.some(o => o.kind === "statement" && o.verified && o.payment && o.selected.includes(input.sourceId))) throw new RepositoryError("이미 납부한 승인은 납부 후 처리 방식을 선택해 주세요.", 400);
+      if (previous?.kind === "cancel" && (previous.sourceId !== input.sourceId || previous.cancelRoute !== input.cancelRoute || previous.cancelScope !== input.cancelScope)) throw new RepositoryError("취소 수정 시 원거래·처리 방식·전액/부분 구분은 바꿀 수 없어요.", 400);
       const now = new Date().toISOString();
       const record: Operation = { ...input, id, revision: previous ? previous.revision + 1 : 1, createdAt: previous?.createdAt ?? now, updatedAt: now };
       if (previous) book.operations[index] = record; else book.operations.push(record);
+      if (input.kind === "cancel" && input.cancelRoute === "exclude") {
+        // Unpaid statements are adjusted together with the cancellation in one transaction.
+        for (const statement of book.operations.filter(o => o.kind === "statement" && !o.payment && (o.selected.includes(input.sourceId) || o.deferred.includes(input.sourceId)))) {
+          if (input.cancelScope !== "partial") {
+            statement.selected = statement.selected.filter(id => id !== input.sourceId);
+            statement.deferred = statement.deferred.filter(id => id !== input.sourceId);
+            statement.billingDiscounts = statement.billingDiscounts?.filter(d => d.rowId !== input.sourceId);
+          }
+          if (statement.verified) statement.amount = String(statementTotal(statement, statementRows(statement, book, statement.id)));
+          statement.revision++; statement.updatedAt = now;
+        }
+      }
+      if (input.kind === "cancel" && input.cancelScope === "full" && input.cancelRoute === "exclude") {
+        // Validate before deleting so paid approvals and invalid amounts cannot bypass checks.
+        try { validateOperations(book); } catch (error) { throw new RepositoryError(error instanceof Error ? error.message : "취소 연결을 확인해 주세요.", 400); }
+        if (book.operations.some(o => o.allocations.some(a => a.targetId === input.sourceId))) throw new RepositoryError("분담금·보험금 연결을 먼저 정정한 뒤 지출을 삭제해 주세요.", 400);
+        book.expenses = book.expenses.filter(e => e.id !== input.sourceId);
+        book.operations = book.operations.filter(o => o.kind !== "cancel" || o.sourceId !== input.sourceId);
+        for (const expense of book.expenses) if (expense.orderReference === input.sourceId) { expense.orderReference = null; expense.revision++; expense.updatedAt = now; }
+        for (const operation of book.operations) if (operation.parentId === input.sourceId) { operation.parentId = ""; operation.revision++; operation.updatedAt = now; }
+      }
       await write(book, persist, id);
       return book.operations;
     });
