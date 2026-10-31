@@ -4,7 +4,7 @@
 
 ## 현재 구현
 
-**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자는 보류했다. 계정별 대출 자료를 보존하며 상환일정 기반 원리금 납입은 가계부·계좌와 연결한다. 공통 Clerk 로그인을 사용한다. 버디 평가는 폐기된 기능으로 진입을 차단한다. MCP는 읽기 전용 탐색 구현이며 운영 배포는 별도 승인 전까지 하지 않는다.
+**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자는 보류했다. 계정별 대출 자료를 보존하며 상환일정 기반 원리금 납입은 가계부·계좌와 연결한다. 공통 Clerk 로그인을 사용한다. 버디 평가는 폐기된 기능으로 진입을 차단한다. MCP는 읽기 전용 탐색 구현이며 운영 배포는 사용자 승인 후 main의 Git 연동으로 수행한다.
 
 - 공개 저장소는 git@github.com:SpiritFlag/MoneyBook.git. 레거시 Git 이력·실거래·비공개 환경 설정을 가져오지 않았다.
 - Next.js 16.4.2 / React 19.3.1 / TypeScript 6.0.3 / Tailwind CSS 4.3.3 / shadcn Button·Radix Slot / SWR / Zod를 사용한다.
@@ -142,7 +142,7 @@
 
 ### 읽기 전용 경제활동 MCP
 
-- 현재 소스의 features는 mcp=true, buddyReviews=false다. 새 코드를 빌드하면 /mcp와 OAuth discovery를 사용한다. 운영은 별도 배포 전까지 기존 상태이며 이 구현에서 인프라·OAuth 설정·DB 스키마·실거래는 변경하지 않는다. 폐기된 /buddy와 /api/buddy-reviews는 404/private no-store로 유지하고 기존 평가 데이터·내부 구현은 보존한다. MCP에서 평가 reader/writer를 생성하거나 등록하지 않는다.
+- 현재 소스의 features는 mcp=true, buddyReviews=false다. 새 코드를 빌드하면 /mcp와 OAuth discovery를 사용한다. 운영 반영은 사용자 승인 후 main의 Git 연동 배포를 사용하며 이 구현에서 인프라·OAuth 설정·DB 스키마·실거래는 변경하지 않는다. 폐기된 /buddy와 /api/buddy-reviews는 404/private no-store로 유지하고 기존 평가 데이터·내부 구현은 보존한다. MCP에서 평가 reader/writer를 생성하거나 등록하지 않는다.
 - mcp-server.ts는 mcp-handler/공식 SDK의 stateless HTTP 서버다. 도구는 7개: get_book_overview, explore_activity, search_records, get_record, inspect_assets, inspect_loans, inspect_recurring. 전부 읽기 전용이며 moneybook://guide에 의미·단위·불확실성·revision 규칙을 제공한다. 기존 get_buddy_review/save_buddy_review 및 예전 목록 도구는 등록하지 않는다. 서버는 LLM을 호출하거나 소비 평가를 저장하지 않는다.
 - mcp-exploration.ts가 탐색용 계산을 담당한다. explore_activity는 today/week/month/range(최대 366일), 05시 기준 일회성 순소비·일별 흐름·분류/거래 증감 기여·큰 거래 ID·별도 실제 금융 흐름과 자산별 원인 증감을 반환한다. 기간형은 monthAmount를 통한 월간 맥락이며 주간 일할 배분하지 않는다. registeredMonth는 미래 날짜로 저장된 거래를 포함한 웹 월간 전체 합계다. 이번 달 기간형 비교도 별도의 월간 귀속 비교로 제공한다.
 - 기본 주는 월요일 시작이다. 진행 중인 오늘은 현황에 포함하고 비교에서는 제외한다. 이번 주는 지난주, 이번 달은 지난달과 같은 수의 완료 장부일을 비교한다. 월 길이가 다르면 짧은 쪽에 맞추고 실제 비교 날짜를 응답한다. 첫날에는 완료일 비교가 null이다. today는 최근 7개 완료 장부일을 맥락으로 제공한다. range는 미래 종료일을 오늘로 제한한 관측 구간과 같은 길이의 직전 구간을 사용하고 오늘은 비교에서 제외한다. categoryContributions는 전체 분류 증감이며 상위 transactionContributions는 증감의 근거 거래이지 인과 추정이 아니다.
