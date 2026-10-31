@@ -77,10 +77,10 @@ export function TopupEditor({
                 className="form-control"
                 inputMode="decimal"
                 value={t.amount}
-                onChange={(e) => patch({ amount: e.target.value })}
+                onChange={(e) => patch({ amount: e.target.value, ...(t.received === t.amount ? { received: e.target.value } : {}) })}
               />
             </Field>
-            <Field label={`충전 수령량 · ${currencyInfo(value.currency).unit}`}>
+            <Field label={`충전 수령량 · ${currencyInfo(value.currency).unit}`} hint={t.received === t.amount ? "출금액과 같게 자동 입력해요. 수령량이 다르면 직접 수정해 주세요." : "직접 입력한 수령량을 유지해요. 출금액과 같게 맞추면 다시 함께 바뀌어요."}>
               <input
                 className="form-control"
                 inputMode="decimal"

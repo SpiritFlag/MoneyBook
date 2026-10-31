@@ -13,7 +13,7 @@ import { TimeInput } from "./time-input";
 import { Button } from "./ui/button";
 import { LedgerState } from "./ledger-state";
 
-export function LoanPaymentForm({ loan, row, existing, onClose, onSaved }: { loan: LoanSample; row: LoanScheduleRow; existing?: Expense; onClose: () => void; onSaved: () => void }) {
+export function LoanPaymentForm({ loan, row, existing, onClose, onSaved }: { loan: Pick<LoanSample, "id" | "name" | "informationDate">; row: LoanScheduleRow; existing?: Expense; onClose: () => void; onSaved: () => void }) {
   const assets = useAssets();
   const { mutate } = useSWRConfig();
   const id = useRef<string | null>(existing?.id ?? null);
