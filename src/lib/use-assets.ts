@@ -1,6 +1,6 @@
 "use client";
 import useSWR from "swr";
-import type { Asset, AssetInput } from "./asset";
+import type { Asset, AssetInput, AssetOrderInput } from "./asset";
 export const assetsKey = "/api/assets";
 async function fetchAssets(url: string): Promise<Asset[]> {
   const response = await fetch(url, { cache: "no-store" });
@@ -13,5 +13,11 @@ export async function saveAsset(id: string, asset: AssetInput, revision?: number
   const response = await fetch(assetsKey, { method: revision ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, asset, revision }) });
   const body = await response.json();
   if (!response.ok) throw new Error(body.message ?? "자산을 저장하지 못했어요.");
+  return body;
+}
+export async function saveAssetOrder(input: AssetOrderInput): Promise<Asset[]> {
+  const response = await fetch(assetsKey, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.message ?? "자산 순서를 저장하지 못했어요.");
   return body;
 }

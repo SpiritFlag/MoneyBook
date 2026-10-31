@@ -42,6 +42,11 @@ export const assetInputSchema = z.object({
 export type AssetInput = z.infer<typeof assetInputSchema>;
 export const assetSchema = assetInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
 export type Asset = z.infer<typeof assetSchema>;
+const orderedAssetIds = z.array(z.string().min(1).max(80)).max(1000);
+export const assetOrderSchema = z.object({ ids: orderedAssetIds, expectedIds: orderedAssetIds }).superRefine((value, ctx) => {
+  for (const field of ["ids", "expectedIds"] as const) if (new Set(value[field]).size !== value[field].length) ctx.addIssue({ code: "custom", path: [field], message: "자산 순서에 중복이 있어요." });
+});
+export type AssetOrderInput = z.infer<typeof assetOrderSchema>;
 export function newAsset(date: string): AssetInput {
   return { name: "", kind: "account", currency: "KRW", openingDate: date, openingBalance: null, valuationRate: null, rateDate: date, memo: "" };
 }

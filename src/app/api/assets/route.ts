@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { assetInputSchema } from "@/lib/asset";
+import { assetInputSchema, assetOrderSchema } from "@/lib/asset";
 import { authenticatedRepository } from "@/lib/authenticated-repository";
 import { localJson, localFailure, requireLocal, readLocalBody } from "@/lib/local-api";
 export const runtime = "nodejs";
@@ -22,3 +22,12 @@ async function save(request: Request, update: boolean) {
 }
 export async function POST(request: Request) { return save(request, false); }
 export async function PUT(request: Request) { return save(request, true); }
+export async function PATCH(request: Request) {
+  try {
+    requireLocal(request);
+    const repository = await authenticatedRepository();
+    const parsed = assetOrderSchema.safeParse(await readLocalBody(request));
+    if (!parsed.success) return localJson({ message: parsed.error.issues[0].message }, 400);
+    return localJson(await repository.reorderAssets(parsed.data));
+  } catch (error) { return localFailure(error); }
+}
