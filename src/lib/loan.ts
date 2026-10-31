@@ -31,6 +31,7 @@ export const loanSampleSchema = z.object({
   institution: z.string().min(1),
   originalPrincipal: money,
   remainingPrincipal: money,
+  recordedRemainingPrincipal: money.optional(),
   informationDate: date,
   startDate: date,
   maturityDate: date.nullable(),
@@ -56,6 +57,7 @@ export const loanSampleSchema = z.object({
   earlyRepaymentFeeShown: money.nullable(),
   repayments: z.array(z.object({
     id: z.string().min(1), installment: installment.nullable(), date, label: z.string().min(1).optional(),
+    expenseId: z.string().min(1).optional(), scheduleKey: z.string().min(1).optional(), scheduledDueDate: date.nullable().optional(),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/).nullable(),
     lateInterest: money.optional(), lateFee: money.optional(),
     support: z.enum(["local_government", "unmarked"]).optional(),
@@ -146,7 +148,7 @@ export function loanScheduleCoverage(loan: LoanSample) {
   if (loan.installmentCount === null) {
     const recorded = new Set([
       ...loan.schedule.map((row) => row.installment === null ? `date:${row.dueDate}` : `installment:${row.installment}`),
-      ...loan.repayments.map((row) => row.installment === null ? `date:${row.date}` : `installment:${row.installment}`),
+      ...loan.repayments.map((row) => row.scheduleKey ?? (row.installment === null ? `date:${row.date}` : `installment:${row.installment}`)),
     ]);
     return { covered: recorded.size, missing: null };
   }

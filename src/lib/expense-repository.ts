@@ -12,6 +12,7 @@ import { operationInputSchema, operationSchema, normalizeTransitOperation, valid
 import { seedExpenses } from "./seed-expenses";
 import { loanSampleSchema, loanBatchSchema, type LoanSample } from "./loan";
 import { trashEntrySchema, retainedTrash, type TrashEntry } from "./trash";
+import { loanPaymentInputSchema, loanPaymentExpense, loanScheduleKey, loanScheduleBasis, loansWithPayments, validateLoanPayments, type LoanPaymentInput } from "./loan-payment";
 
 export class RepositoryError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "RepositoryError"; }
@@ -70,12 +71,13 @@ export function createBookRepository(storage: BookStorage) {
     return operation(book, persist);
   });
   async function write(book: Book, persist: PersistBook, verifyingId?: string) {
-    try { validateOperations(book, verifyingId); } catch (error) { throw new RepositoryError(error instanceof Error ? error.message : "연결 거래를 확인해 주세요.", 400); }
+    try { validateOperations(book, verifyingId); validateLoanPayments(book.loans, book.expenses); } catch (error) { throw new RepositoryError(error instanceof Error ? error.message : "연결 거래를 확인해 주세요.", 400); }
     await persist(book);
   }
   function save(input: ExpenseInput, id: string, expectedRevision: number | null): Promise<Expense[]> {
     return enqueue(async (book, persist) => {
       input = expenseInputSchema.parse(input);
+      if (book.expenses.find(e => e.id === id)?.loanPayment) throw new RepositoryError("원리금 납입은 대출 상세에서 수정해 주세요.", 400);
       if (book.trash?.some(t => t.expenses.some(e => e.id === id))) throw new RepositoryError("휴지통에 있는 거래예요. 먼저 복원해 주세요.", 409);
       if (input.topup?.debitCardId !== undefined) input = { ...input, topup: { ...input.topup, fromId: debitSource(input.topup.debitCardId, input.topup.fromId, book) } };
       if (input.useKind === "period") input = { ...input, useTime: null, useTimeFollowsPayment: false };
@@ -293,6 +295,32 @@ export function createBookRepository(storage: BookStorage) {
       return { restored: id };
     });
   }
+  async function saveLoanPayment(input: LoanPaymentInput, id: string, revision: number | null) {
+    return enqueue(async (book, persist) => {
+      const value = loanPaymentInputSchema.parse(input);
+      const loan = book.loans.find(loan => loan.id === value.loanId);
+      if (!loan) throw new RepositoryError("현재 계정에서 대출을 찾을 수 없어요.", 404);
+      const row = loan.schedule.find(row => loanScheduleKey(row) === value.scheduleKey);
+      if (!row) throw new RepositoryError("상환일정을 찾을 수 없어요. 대출 상세를 다시 열어 주세요.", 404);
+      if (loanScheduleBasis(row) !== value.scheduleBasis) throw new RepositoryError("상환일정이 바뀌었어요. 최신 일정을 다시 확인해 주세요.", 409);
+      const account = book.assets.find(asset => asset.id === value.assetId && asset.kind === "account" && asset.currency === "KRW");
+      if (!account) throw new RepositoryError("원화 출금 계좌를 선택해 주세요.", 400);
+      if (book.trash?.some(entry => entry.expenses.some(e => e.id === id))) throw new RepositoryError("휴지통에 있는 납입이에요. 먼저 복원해 주세요.", 409);
+      const previous = book.expenses.find(e => e.id === id);
+      if (previous && (!previous.loanPayment || previous.loanPayment.loanId !== loan.id || previous.loanPayment.scheduleKey !== value.scheduleKey)) throw new RepositoryError("다른 거래에 사용된 ID예요.", 409);
+      if (revision !== null && !previous) throw new RepositoryError("수정할 납입을 찾을 수 없어요.", 404);
+      if (previous && revision === null) {
+        const same = previous.paymentDate === value.date && previous.time === value.time && previous.assetId === value.assetId && previous.memo === value.memo && previous.loanPayment!.principal === value.principal && previous.loanPayment!.interest === value.interest && previous.loanPayment!.fee === value.fee;
+        if (same) return previous;
+        throw new RepositoryError("이미 저장된 납입이에요. 기존 기록을 다시 열어 주세요.", 409);
+      }
+      if (previous && previous.revision !== revision) throw new RepositoryError("다른 화면에서 납입을 수정했어요. 최신 기록을 다시 열어 주세요.", 409);
+      const record = loanPaymentExpense(value, loan, row, account, id, previous);
+      book.expenses = [...book.expenses.filter(e => e.id !== id), record];
+      await write(book, persist);
+      return record;
+    });
+  }
   async function importLoans(input: LoanSample[]) {
     const incoming = loanBatchSchema.parse(input);
     return enqueue(async (book, persist) => {
@@ -307,7 +335,7 @@ export function createBookRepository(storage: BookStorage) {
       return { added, total: book.loans.length };
     });
   }
-  return { listTrash: async () => retainedTrash((await read()).trash ?? []), moveToTrash, restoreTrash, listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => (await read()).loans, importLoans, save, saveAsset, saveOperation };
+  return { saveLoanPayment, listTrash: async () => retainedTrash((await read()).trash ?? []), moveToTrash, restoreTrash, listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => { const book = await read(); return loansWithPayments(book.loans, book.expenses); }, importLoans, save, saveAsset, saveOperation };
 }
 
 // HMR 때 검증·저장 함수는 새로 만들고 쓰기 큐만 공유합니다.

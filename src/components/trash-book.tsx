@@ -24,6 +24,7 @@ export function TrashBook() {
     try {
       await changeTrash("POST", { id: entry.id });
       await Promise.allSettled(trashAffectedKeys.map(key => refresh(key)));
+      await refresh(key => typeof key === "string" && key.startsWith("/api/loans/"));
       const expense = entry.expenses[0];
       router.push(expense ? `/transactions/${expense.id}` : `/records/${entry.operations[0].id}`);
     } catch (error) { setFailure(error instanceof Error ? error.message : "복원하지 못했어요."); }
