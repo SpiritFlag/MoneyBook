@@ -89,29 +89,18 @@ test("브라우저 콘텐츠는 읽기 전용이며 태그·멘트·기준시각
   assert.match(html, /&lt;script&gt;/); assert.doesNotMatch(html, /<script>|<textarea|contenteditable/);
 });
 
-test("인증된 MCP HTTP는 모든 페이지 조회→평가 저장→재조회와 계정 격리를 지킨다", async () => {
-  const owner = fixture(), other = fixture(); other.book.expenses = [];
+test("새 MCP는 폐기된 평가 조회·저장을 노출하지 않는다", async () => {
+  const owner = fixture();
   const config = { resource: "https://moneybook.example/mcp", issuer: "https://clerk.example", clientId: "https://chatgpt.com/oauth/client.json" };
   const token: OAuthAccessToken = { subject: "user_owner", clientId: config.clientId, scopes: ["profile"], aud: [config.resource], revoked: false, expired: false, expiration: 4_000_000_000 };
-  const handler = withMcpAuth(createMoneybookMcpHandler(async user => structuredClone(user === "user_owner" ? owner.book : other.book), user => user === "user_owner" ? owner.service : other.service), async (_, bearer) => bearer ? oauthIdentity({ ...token, subject: bearer === "owner" ? "user_owner" : "user_other" }, bearer, config) : undefined, mcpAuthOptions(config));
-  const clients = [];
-  for (const bearer of ["owner", "other"]) {
-    const client = new Client({ name: "buddy-test", version: "1" });
-    await client.connect(new StreamableHTTPClientTransport(new URL(config.resource), { requestInit: { headers: { authorization: `Bearer ${bearer}` } }, fetch: async (input, init) => handler(new Request(input, init)) })); clients.push(client);
-  }
+  const handler = withMcpAuth(createMoneybookMcpHandler(async () => ({ book: structuredClone(owner.book), revision: "1" })), async (_, bearer) => bearer ? oauthIdentity(token, bearer, config) : undefined, mcpAuthOptions(config));
+  const client = new Client({ name: "readonly-test", version: "1" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(config.resource), { requestInit: { headers: { authorization: "Bearer owner" } }, fetch: async (input, init) => handler(new Request(input, init)) }));
   try {
-    const [a, b] = clients, tools = (await a.listTools()).tools;
-    assert.equal(tools.length, 18);
-    assert.deepEqual(tools.filter(t => !t.annotations?.readOnlyHint).map(t => t.name), ["save_buddy_review"]);
-    const result = await a.callTool({ name: "get_buddy_review", arguments: { month: "2026-10", limit: 2 } });
-    const data = (result.structuredContent as { data: Awaited<ReturnType<typeof owner.service.read>> & { nextOffset: number; total: number } }).data;
-    assert.equal(data.total, 6); assert.equal(data.nextOffset, 2);
-    const input = { month: "2026-10", ...data.analysisInput, expenses: [{ expenseId: "demo-1", tags: ["자유", "복수"], comment: "좋아요" }], monthlyComment: "월 평가", idempotencyKey: "mcp-1" };
-    const denied = await b.callTool({ name: "save_buddy_review", arguments: input }); assert.equal(denied.isError, true);
-    const saved = await a.callTool({ name: "save_buddy_review", arguments: input }); assert.equal(saved.isError, undefined);
-    assert.equal((saved.structuredContent as { data: { outcome: string } }).data.outcome, "buddy_review_saved");
-    assert.equal((await b.callTool({ name: "get_buddy_review", arguments: { month: "2026-10" } })).isError, undefined);
-    assert.equal(other.rows.length, 0); assert.equal(owner.rows.length, 1);
-    assert.equal((await a.callTool({ name: "save_buddy_review", arguments: { ...input, userId: "user_other" } })).isError, true);
-  } finally { for (const c of clients) await c.close(); }
+    const tools = (await client.listTools()).tools;
+    assert.ok(tools.every(t => t.annotations?.readOnlyHint));
+    assert.ok(tools.every(t => !t.name.includes("buddy")));
+    for (const name of ["get_buddy_review", "save_buddy_review"]) await assert.rejects(client.callTool({ name, arguments: {} }), /not found/);
+    assert.equal(owner.rows.length, 0);
+  } finally { await client.close(); }
 });

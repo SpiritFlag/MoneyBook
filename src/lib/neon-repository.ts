@@ -59,6 +59,16 @@ export function createNeonBookReader(userId: string, connectionString: string) {
   return neonBookSource(userId, connectionString).read;
 }
 
+// Same single SELECT as the existing reader; no repository/read-time cleanup.
+// A fresh snapshot per MCP call exposes changes between follow-ups and pages.
+export function createNeonBookSnapshotReader(userId: string, connectionString: string) {
+  const source = neonBookSource(userId, connectionString);
+  return async () => {
+    const snapshot = await source.readSnapshot();
+    return { book: snapshot.book, revision: String(snapshot.revision) };
+  };
+}
+
 export function createNeonRepository(userId: string, connectionString: string) {
   const { sql, key, readSnapshot, read } = neonBookSource(userId, connectionString);
   const storage: BookStorage = {

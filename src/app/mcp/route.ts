@@ -2,15 +2,14 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { withMcpAuth } from "mcp-handler";
 import { mcpAuthOptions, mcpConfig, oauthIdentity } from "@/lib/mcp-auth";
 import { createMoneybookMcpHandler } from "@/lib/mcp-server";
-import { createNeonBookReader } from "@/lib/neon-repository";
-import { createNeonBuddyReviews } from "@/lib/neon-buddy-review";
+import { createNeonBookSnapshotReader } from "@/lib/neon-repository";
 import { features, unavailableFeatureResponse } from "@/lib/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const handler = features.mcp ? createMoneybookMcpHandler(userId => createNeonBookReader(userId, process.env.DATABASE_URL ?? "")(), userId => createNeonBuddyReviews(userId, process.env.DATABASE_URL ?? "")) : null;
+const handler = features.mcp ? createMoneybookMcpHandler(userId => createNeonBookSnapshotReader(userId, process.env.DATABASE_URL ?? "")()) : null;
 
 async function authenticated(request: Request) {
   if (!handler || !features.mcp) return unavailableFeatureResponse();

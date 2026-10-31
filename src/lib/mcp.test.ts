@@ -35,7 +35,7 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
   owner.loans = structuredClone([exampleLoan, exampleCreditLoan]);
   const before = JSON.stringify(owner);
   let reads = 0;
-  const handler = withMcpAuth(createMoneybookMcpHandler(async user => { reads++; return structuredClone(user === "user_owner" ? owner : outsider); }), async (_, bearer) => {
+  const handler = withMcpAuth(createMoneybookMcpHandler(async user => { reads++; return { book: structuredClone(user === "user_owner" ? owner : outsider), revision: "7" }; }), async (_, bearer) => {
     if (bearer === "owner") return oauthIdentity(token, bearer, config);
     if (bearer === "other") return oauthIdentity({ ...token, subject: "user_other" }, bearer, config);
     if (bearer === "no-scope") return oauthIdentity({ ...token, scopes: [] }, bearer, config);
@@ -56,28 +56,28 @@ test("MCP protocol: SDK discovery, all read tools, validation, account isolation
   const a = await client("owner"), b = await client("other");
   try {
     const { tools } = await a.listTools();
-    assert.equal(tools.length, 16);
+    assert.equal(tools.length, 7);
     assert.ok(tools.every(t => t.annotations?.readOnlyHint && t.annotations?.destructiveHint === false));
     assert.ok(tools.every(t => !/write|save|create|update|delete|record_book/.test(t.name)));
     assert.equal(reads, 0, "Discovery must not read financial data");
     assert.equal((await a.listResources()).resources[0].uri, "moneybook://guide");
     assert.match(JSON.stringify(await a.readResource({ uri: "moneybook://guide" })), /05:00/);
-    const listed = await a.callTool({ name: "list_expenses", arguments: { limit: 1 } });
+    const listed = await a.callTool({ name: "search_records", arguments: { limit: 1, collection: "expenses" } });
     assert.equal((listed.structuredContent as { data: { total: number } }).data.total, 6);
-    const other = await b.callTool({ name: "list_expenses", arguments: {} });
+    const other = await b.callTool({ name: "search_records", arguments: {} });
     assert.equal((other.structuredContent as { data: { total: number } }).data.total, 0);
     assert.equal((await b.callTool({ name: "get_record", arguments: { collection: "expenses", id: "demo-1" } })).isError, true);
-    assert.equal((await a.callTool({ name: "list_expenses", arguments: { userId: "user_other" } })).isError, true);
-    assert.equal((await a.callTool({ name: "get_daily_book", arguments: { date: "2026-02-30" } })).isError, true);
-    const loans = await a.callTool({ name: "get_loan_overview", arguments: { limit: 1 } });
+    assert.equal((await a.callTool({ name: "search_records", arguments: { userId: "user_other" } })).isError, true);
+    assert.equal((await a.callTool({ name: "explore_activity", arguments: { period: "range", start: "2026-02-30", end: "2026-03-01" } })).isError, true);
+    const loans = await a.callTool({ name: "inspect_loans", arguments: { limit: 1 } });
     assert.equal((loans.structuredContent as { data: { total: number } }).data.total, 2);
-    assert.equal((await b.callTool({ name: "get_loan_detail", arguments: { loanId: exampleLoan.id } })).isError, true);
-    assert.equal((await b.callTool({ name: "list_loan_records", arguments: { loanId: exampleLoan.id, kind: "repayments" } })).isError, true);
-    assert.equal((await a.callTool({ name: "get_loan_detail", arguments: { loanId: exampleLoan.id, userId: "user_other" } })).isError, true);
-    assert.equal((await a.callTool({ name: "get_loan_detail", arguments: { loanId: exampleLoan.id } })).isError, undefined);
-    assert.equal((await a.callTool({ name: "list_loan_records", arguments: { loanId: exampleLoan.id, kind: "schedule", limit: 1 } })).isError, undefined);
-    assert.equal((await a.callTool({ name: "get_asset_overview", arguments: { asOf: "2026-10-18" } })).isError, undefined);
-    assert.equal((await a.callTool({ name: "list_operations", arguments: { start: "2026-10-20", end: "2026-10-01" } })).isError, true);
+    assert.equal((await b.callTool({ name: "inspect_loans", arguments: { loanId: exampleLoan.id } })).isError, true);
+    assert.equal((await b.callTool({ name: "inspect_loans", arguments: { loanId: exampleLoan.id, kind: "repayments" } })).isError, true);
+    assert.equal((await a.callTool({ name: "inspect_loans", arguments: { loanId: exampleLoan.id, userId: "user_other" } })).isError, true);
+    assert.equal((await a.callTool({ name: "inspect_loans", arguments: { loanId: exampleLoan.id } })).isError, undefined);
+    assert.equal((await a.callTool({ name: "inspect_loans", arguments: { loanId: exampleLoan.id, kind: "schedule", limit: 1 } })).isError, undefined);
+    assert.equal((await a.callTool({ name: "inspect_assets", arguments: { asOf: "2026-10-18" } })).isError, undefined);
+    assert.equal((await a.callTool({ name: "search_records", arguments: { start: "2026-10-20", end: "2026-10-01" } })).isError, true);
     await assert.rejects(a.callTool({ name: "save_expense", arguments: {} }), /not found/);
     // Also exercise the 2025 stateless Streamable HTTP fallback used by older clients.
     const legacy = await handler(new Request(config.resource, { method: "POST", headers: { authorization: "Bearer owner", "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-03-26" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) }));

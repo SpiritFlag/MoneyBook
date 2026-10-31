@@ -4,7 +4,7 @@
 
 ## 현재 구현
 
-**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자는 보류했다. 계정별 대출 자료를 보존하며 상환일정 기반 원리금 납입은 가계부·계좌와 연결한다. 공통 Clerk 로그인을 사용한다. 버디의 평가와 MCP는 구현·데이터를 보존한 채 일시 중단한다.
+**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자는 보류했다. 계정별 대출 자료를 보존하며 상환일정 기반 원리금 납입은 가계부·계좌와 연결한다. 공통 Clerk 로그인을 사용한다. 버디 평가는 폐기된 기능으로 진입을 차단한다. MCP는 읽기 전용 탐색 구현이며 운영 배포는 별도 승인 전까지 하지 않는다.
 
 - 공개 저장소는 git@github.com:SpiritFlag/MoneyBook.git. 레거시 Git 이력·실거래·비공개 환경 설정을 가져오지 않았다.
 - Next.js 16.4.2 / React 19.3.1 / TypeScript 6.0.3 / Tailwind CSS 4.3.3 / shadcn Button·Radix Slot / SWR / Zod를 사용한다.
@@ -138,41 +138,21 @@
 - `saveLoanPayment`는 같은 계정의 대출·원화 계좌, 일정 대조·revision·재시도·동일 일정 중복을 공통 장부 트랜잭션에서 검증한다. 기존 자료에 같은 회차(회차가 없으면 같은 예정일)의 납부가 있으면 중복 생성을 거절한다. 회차가 있는 기존 납부는 실제 날짜가 달라도 같은 일정으로 인식한다. 날짜·금액만으로 다른 기존 지출을 자동 연결하지 않는다. 일반 지출 수정으로 납입 연결을 지울 수 없으며 대출의 전용 폼에서 수정한다.
 - 저장한 `Book.loans`의 기존 납부·상환예정표·확인 원금은 보존한다. 웹 `listLoans`는 활성 지출에서 연결 납부를 파생하여 목록·상세에 함께 반환한다. `recordedRemainingPrincipal`은 확인 원금에서 informationDate 다음 날부터 오늘까지 새로 기록한 상환 원금을 차감한 계산값이다. 확인일 이전·당일과 미래 납입을 다시 차감하지 않는다. 확인일 이후 등록한 원금 합계가 확인 잔액을 넘으면 저장을 거절한다. 다음 납부는 기존 다음 예정일(없으면 확인일)부터 날짜가 알려진 미납 일정 중 첫 건이며 날짜 없는 회차를 추정하지 않는다.
 - 거래 상세에서 원리금 납입 수정으로 이동하며 기존 휴지통으로 삭제·복원한다. 대출 이력·계산 잔액도 활성 지출에서 함께 바뀌고 복원 시 일정 중복을 재검증한다. 계정별 SWR의 지출·대출 목록·상세를 함께 갱신한다. 기존 자료만 있는 과거 납부는 출금으로 자동 생성하지 않는다.
-- JSONB의 선택 필드 확장이며 SQL migration은 없다. 운영 writer가 새 expense 필드를 이해하는 버전으로 배포된 뒤 실제 납입을 기록한다. 중단 중인 MCP와 버디 평가는 다시 켜지 않는다. 회귀 테스트는 `loan-payment.test.ts`, 별도 테스트 DB 검증은 `npx tsx scripts/test-loan-payments-neon.ts`다.
+- JSONB의 선택 필드 확장이며 SQL migration은 없다. 운영 writer가 새 expense 필드를 이해하는 버전으로 배포된 뒤 실제 납입을 기록한다. 버디 평가는 다시 켜지 않으며 MCP는 아래 읽기 전용 탐색 경로를 사용한다. 회귀 테스트는 `loan-payment.test.ts`, 별도 테스트 DB 검증은 `npx tsx scripts/test-loan-payments-neon.ts`다.
 
-### 버디 평가·MCP 중단과 재개
+### 읽기 전용 경제활동 MCP
 
-- `src/lib/features.ts`의 `buddyReviews`와 `mcp`는 모두 false다. 환경변수·OAuth 설정 유무나 유효한 기존 토큰과 무관하게 진입점에서 차단하며 설정 변경에는 빌드·배포가 필요하다. 메뉴도 같은 설정을 따른다.
-- `/buddy`는 proxy에서 404/private no-store로 종료하고 페이지에도 notFound 방어를 둔다. 스트리밍 레이아웃으로 인한 200 응답을 방지한다. `/api/buddy-reviews` GET·HEAD와 `/mcp` GET·HEAD·POST·DELETE·OPTIONS, OAuth discovery 세 경로의 GET·HEAD·OPTIONS도 인증·DB 조회 전에 404/private no-store로 종료한다. 중단 중 MCP 핸들러는 생성하지 않는다.
-- 기존 평가 테이블·장부·Clerk OAuth 앱·scope·운영 환경변수는 변경하거나 삭제하지 않는다. 아래 두 절은 재개를 위해 보존한 구현을 설명한다.
-- 재개는 사용자와 합의한 뒤 필요한 플래그를 true로 바꾸고, 기존 OAuth 환경변수와 로그인·계정 격리·실제 연결을 검증하여 Git 기반 배포한다. 평가 작성까지 재개하려면 두 플래그가 모두 켜져 있어야 한다. 클라이언트는 MCP 연결·도구 목록을 새로고침한다. DB를 초기화하거나 평가 migration을 되돌릴 필요는 없다.
-- 중단 검증은 `npm run build` 후 `node scripts/check-paused-features.mjs`로 임시 로컬 서버의 페이지·API·MCP·discovery 응답을 확인한다. 기존 평가·MCP SDK 테스트는 유지해 재개 가능한 구현도 검증한다.
-
-### 보존한 버디 월별 평가 구현
-
-- `lib/buddy-review.ts`는 기존 `consumptionRecords`·`monthAmount`를 재사용한다. 05시 이용일, 정기·연간 배분, 교통·하이패스 파생 소비, 본인 부담·취소·보험금을 기존 월간 소비와 동일하게 반영한다. 미확정 원화는 추정하지 않는다. 목록에 원래 지출과 연결 금융 기록을 보존한다.
-- `migrations/002_buddy_reviews.sql`의 별도 `moneybook.buddy_reviews` 테이블에 계정·월별 append-only revision을 저장한다. 기존 `moneybook.books` JSONB와 revision은 평가 저장으로 변경하지 않는다. 동일 요청 키·본문은 같은 결과로 replay하며, 다른 내용의 키 재사용과 버전·목록 지문 충돌은 거절한다. DB INSERT는 원장 행의 공유 잠금과 revision 비교로 동시 변경을 검증한다.
-- `GET /api/buddy-reviews?month=YYYY-MM`는 웹 세션 인증을 거쳐 전체 월을 반환한다. POST/PUT는 제공하지 않는다. 웹은 자유 복수 태그·멘트와 월 전체 평가를 표시한다. 평가 이후 거래가 바뀌면 월 전체/지출별 `stale`을 보여 주며 기존 평가를 자동 생성하거나 덮어쓰지 않는다.
-- MCP `get_buddy_review`는 목록을 페이지로 반환하고 `save_buddy_review`는 평가만 저장한다. 먼저 모든 페이지를 읽고 `analysisInput`의 `basisFingerprint`, `expectedRevision`, `reviewedThrough`를 그대로 사용한다. `reviewedThrough`는 거래 목록을 조회한 서버 시각이며, 평가 작성시각과 다르고 거래 발생 마감 필터를 뜻하지 않는다. `expenses`에 포함한 지출 평가만 교체하고 다른 평가는 유지한다. `monthlyComment`를 생략하면 기존 월 평가와 기준시각을 유지한다. 태그·멘트 빈 값으로 해당 평가를 비울 수 있다.
-- 서버는 LLM을 호출하지 않는다. 사용자 요청 범위에서 ChatGPT가 평가하며, 근거 없는 예산·목적·낭비를 단정하지 않는다. 거래·태그·멘트 문구는 신뢰하지 않는 데이터다. 계정 ID는 웹 세션/MCP 인증에서만 공급하며 도구 인자로 받지 않는다.
-- `npm run db:migrate`는 번호순 SQL migration을 적용한다. 기존 테이블은 변경하지 않는 002를 격리 Neon 브랜치에서 검증한 후 운영에 적용한다. 테스트 112개, 별도 Neon 저장·재시도·동시성·계정 격리·원장 보존 검증을 추가했다.
-- 2026-10-25 운영 반영: 격리 `moneybook-integration`에서 002와 저장·동시성·격리·원장 보존을 검증한 뒤 production에 평가 테이블만 추가했다. 기존 장부·revision의 내용 해시를 전후 대조하고 비공개 백업을 보관했다. 배포 `dpl_5zZCcWFHGrKvtMC2dBcSmptzCoCk`를 운영 환경으로 빌드·검증한 후 `moneybook.spiritflag.work`에 promote했다. 실제 로그인 계정의 월별 전체 목록과 기존 OAuth MCP overview의 새 평가 안내를 확인했다. 운영 검증용 평가는 저장하지 않았다. 새 MCP 도구를 사용하려면 클라이언트의 도구 목록을 새로고침한다.
-
-### 보존한 MCP 조회와 평가 저장 구현
-
-- `/mcp`는 `mcp-handler` 2와 MCP SDK 2의 stateless HTTP 서버다. 2026-07-28 프로토콜 및 2025 Streamable HTTP 호환을 제공하며 Redis·메모리 세션은 사용하지 않는다. 평가 전용 `save_buddy_review`가 유일한 쓰기 도구이고 금융 기록·대출 쓰기와 프롬프트·이벤트 구독은 제공하지 않는다.
-- 도구는 기존 장부 조회 12개에 `get_asset_overview`, `get_loan_overview`, `get_loan_detail`, `list_loan_records`를 더한 16개다. `moneybook://guide` 리소스에 날짜·통화·소비·페이지 해석 규칙을 제공한다. 저장된 상품·할인·메모·교통 여정·정산 배분·명세서 초안·템플릿·대출을 조회할 수 있다. 이전 보관 웹의 장부는 대상이 아니다.
-- 자산 현황은 웹과 같은 assetPosition 계산을 재사용하고 기준일·현재 저장 환율·평가 미확정 개수를 제공한다. 대출 현황은 각 informationDate의 확인 원금 합계를 반환하며 오늘 잔액으로 예측하지 않는다. 두 현황의 합계는 페이지 전체 대상 기준이다. 대출 상세는 조건·기록 합계·건수, 이력 조회는 repayments/schedule/events를 각각 페이지로 반환한다. 날짜 범위가 있으면 미확인 날짜의 행은 제외하고 undatedCount를 알려준다. 원본 전체는 get_record의 loans 컬렉션으로도 조회한다.
-- 모든 도구에 readOnly/idempotent, non-destructive, closed-world annotation을 지정한다. 목록은 offset/limit(기본 25, 최대 100)과 `nextOffset`을 사용하고 약 600 KB에서 페이지를 나눈다. 단일 기록은 자르지 않는다. `get_record`의 offset/limit은 지출의 연결 금융 기록 목록에만 적용한다. 동시 수정 중 offset 페이지는 변할 수 있어 일관된 시점의 전체 export를 보장하지 않는다.
-- `get_daily_book`은 웹과 같은 소비 계산·05시 경계를 사용하며 수입과 이동 기준 행도 종류별로 반환한다. `get_monthly_book`은 기간 배분·취소·보험·혼합 분류를 반영한다. 소비 조회의 파생 지출 금액과 실제 결제 원본을 구분해야 한다. 원본은 `list_expenses`/`get_record`로 확인한다. 잔액·원장·카드 승인은 기존 웹 계산 함수를 공유하고, 원장은 기간 필터와 페이지를 적용하기 전에 전후 잔액을 계산한다.
-- 웹과 같은 SpiritFlag Universe Production Clerk 인스턴스의 기존 ChatGPT CIMD(`https://chatgpt.com/oauth/client.json`)를 재사용한다. 매 요청 `clerkClient().idPOAuthAccessToken.verify()`로 온라인 검증한 후 만료·취소·허용 client ID·정확한 resource audience·`profile` scope를 검사한다. `offline_access`는 refresh를 위한 discovery scope다. 같은 CIMD를 사용하는 다른 서비스의 토큰도 MoneyBook `/mcp` audience가 없으면 거절한다. 웹 세션 쿠키·공유 secret·기존 owner 환경변수로 인증하거나 소유자를 대신하지 않는다. 웹과 마찬가지로 검증된 token subject의 계정별 장부만 조회한다.
-- 서버 환경변수는 기존 `MCP_RESOURCE_URL`, `CLERK_AUTHORIZATION_SERVER`, `CLERK_OAUTH_CLIENT_ID`와 앱의 `CLERK_SECRET_KEY`, `DATABASE_URL`이다. OAuth 설정 누락은 503, 인증 실패는 401 challenge, scope 부족은 403이다. MCP 응답은 private/no-store다. 웹 API의 기존 세션 인증·Origin 차단은 유지하고 MCP·공개 metadata만 웹 세션 handshake를 우회한다.
-- 금융 기록 DB 접근은 `createNeonBookReader`의 단일 SELECT 스냅샷이며 금융 저장 메서드를 전달하지 않는다. 평가는 별도 `createNeonBuddyReviews` 저장소로만 쓴다. 조회는 빈 계정의 DB 행도 생성하지 않는다. DB 오류·연결 문자열·토큰은 응답에 포함하지 않는다.
-- 공개 discovery는 `/.well-known/oauth-protected-resource/mcp`와 호환 루트 `/.well-known/oauth-protected-resource`다. `/.well-known/oauth-authorization-server`는 Clerk의 실제 issuer/endpoints를 보존해 전달한다. 서버 설정은 `/api/mcp`를 허용하지 않는다.
-- 운영 연결 주소는 `https://moneybook.spiritflag.work/mcp`, issuer는 `https://clerk.spiritflag.work`다. ChatGPT 연결 화면의 Client ID·Secret은 비워 두고 CIMD를 사용한다. 2026-10-21 사용자 승인으로 Universe의 기존 ChatGPT CIMD에 `profile`을 추가하고 기존 `email`·`openid`·`offline_access`·`life:*`는 보존했다. Vercel Production의 `CLERK_OAUTH_CLIENT_ID`는 CIMD URL, `MCP_RESOURCE_URL`은 `/mcp`로 맞췄다. 인스턴스 전체의 기본 scope·CIMD/DCR 공개 정책은 변경하지 않았다.
-- 레거시 `k5NUVpz7J8hKojGn`은 별도 MoneyBook Clerk 인스턴스(`clerk.moneybook.spiritflag.work`)의 앱이다. 현재 공통 로그인 인스턴스에 재사용할 수 없다. 과거 연결 문서의 issuer·client 조합을 그대로 쓰지 말고 대시보드의 실제 소속을 확인한다. 연결 검증은 첫 302 응답만으로 성공이라 판단하지 않으며 scope 허용·로그인/consent·token의 client/audience·인증된 MCP 조회를 구분한다.
-- `mcp.test.ts`는 공식 SDK의 discovery·호출·resource 조회, 2025 프로토콜 호환, 인증/권한 거절, 계정 격리, 입력 검증, 페이지, 소비 계산과 원장 잔액을 가상 데이터로 검증한다. `test:db`는 기존 전용 검증 브랜치에서 SELECT 전용 reader의 계정 격리 및 조회 전후 revision/payload 보존을 추가 검증한다. 실제 운영 계정의 OAuth consent와 인증된 원격 조회는 별도 실제 연결 검증이 필요하다.
-- 구현 검증: 전체 테스트 106개·Neon 통합 테스트·타입 검사·ESLint·프로덕션 빌드 통과. 대출 가져오기의 중복·충돌·원자성, 동시 자산 쓰기 시 보존, 조회 도구의 계정 격리·페이지·미확정·지원·연체 항목을 포함한다. 운영에서는 기존 OAuth 연결의 overview로 새 장부의 loans를 재조회했고 웹 로그인 후 목록·상세와 무인증 API/MCP의 401/private no-store를 확인했다. 기존 클라이언트가 예전 tools/list 스키마를 캐시한 경우 새 도구와 get_record.loans를 사용하려면 연결의 도구 목록을 새로고침해야 한다.
+- 현재 소스의 features는 mcp=true, buddyReviews=false다. 새 코드를 빌드하면 /mcp와 OAuth discovery를 사용한다. 운영은 별도 배포 전까지 기존 상태이며 이 구현에서 인프라·OAuth 설정·DB 스키마·실거래는 변경하지 않는다. 폐기된 /buddy와 /api/buddy-reviews는 404/private no-store로 유지하고 기존 평가 데이터·내부 구현은 보존한다. MCP에서 평가 reader/writer를 생성하거나 등록하지 않는다.
+- mcp-server.ts는 mcp-handler/공식 SDK의 stateless HTTP 서버다. 도구는 7개: get_book_overview, explore_activity, search_records, get_record, inspect_assets, inspect_loans, inspect_recurring. 전부 읽기 전용이며 moneybook://guide에 의미·단위·불확실성·revision 규칙을 제공한다. 기존 get_buddy_review/save_buddy_review 및 예전 목록 도구는 등록하지 않는다. 서버는 LLM을 호출하거나 소비 평가를 저장하지 않는다.
+- mcp-exploration.ts가 탐색용 계산을 담당한다. explore_activity는 today/week/month/range(최대 366일), 05시 기준 일회성 순소비·일별 흐름·분류/거래 증감 기여·큰 거래 ID·별도 실제 금융 흐름과 자산별 원인 증감을 반환한다. 기간형은 monthAmount를 통한 월간 맥락이며 주간 일할 배분하지 않는다. registeredMonth는 미래 날짜로 저장된 거래를 포함한 웹 월간 전체 합계다. 이번 달 기간형 비교도 별도의 월간 귀속 비교로 제공한다.
+- 기본 주는 월요일 시작이다. 진행 중인 오늘은 현황에 포함하고 비교에서는 제외한다. 이번 주는 지난주, 이번 달은 지난달과 같은 수의 완료 장부일을 비교한다. 월 길이가 다르면 짧은 쪽에 맞추고 실제 비교 날짜를 응답한다. 첫날에는 완료일 비교가 null이다. today는 최근 7개 완료 장부일을 맥락으로 제공한다. range는 미래 종료일을 오늘로 제한한 관측 구간과 같은 길이의 직전 구간을 사용하고 오늘은 비교에서 제외한다. categoryContributions는 전체 분류 증감이며 상위 transactionContributions는 증감의 근거 거래이지 인과 추정이 아니다.
+- search_records는 거래명·상품명·메모·분류의 리터럴 검색, book/use/payment 날짜와 혼합 상품 분류 필터를 제공한다. 금융 기록의 단계·납부·충전 날짜도 검색한다. 소비처 별칭·실제 섭취량·자동 반복 패턴을 추정하지 않는다. 검색은 요약을, get_record는 상품/할인/여정/배분/명세서/템플릿 원본과 페이지형 연결 관계를 제공한다.
+- inspect_assets는 operationPostings+assetLedger+assetPosition을 사용한다. 날짜는 실제 결제일이며 통화별 최소 단위로 변동 원인(지출 결제·이동·카드대금·보험/분담 회수·대출 상환 등)을 나눈다. 연결 대출 원금·이자·수수료 합계도 제공한다. 기준잔액 미확인은 null, 순변동은 계산 가능하다. 현재 저장 환율로 평가하며 종합 순자산이 아니다. assetId를 지정하면 원장 전후 잔액과 원본 ID를 페이지로 조회한다. 기간 필터 전에 잔액을 계산하며 end 미지정 원장은 asOf까지만 제공한다.
+- inspect_loans는 loansWithPayments로 최신 연결 납입·계산 잔액을 합성하고 monthlyLoanPayments로 웹과 같은 예정월·실제 납입 대응을 사용한다. overview/schedule/repayments/events를 선택하며 대출·날짜로 좁힌다. 예정일 미확인은 기간 합계에서 제외하고 개수를 알려주며 get_record로 전체 원본을 읽을 수 있다. 확인 잔액과 새 납입 반영 계산 잔액, 부분 예정표·지원 표기·미확인 조건을 구분한다. 대출 이력을 출금으로 다시 계산하지 않는다.
+- inspect_recurring은 recurringSeries/recurringRows를 사용한다. 월별 기록 상태와 시리즈별 실제 기록·직전 원본·결제 간격·동일 통화 금액 및 순소비 증감을 제공한다. 다음 결제 예정표는 만들지 않는다. 저장된 미래 날짜 기록도 이력에 포함함을 명시한다.
+- 모든 도구는 createNeonBookSnapshotReader의 계정별 단일 SELECT만 받는다. 일반 저장소 read의 만료 휴지통 정리는 거치지 않으며 빈 계정 행도 생성하지 않는다. 응답 bookRevision/readAt를 제공하고 후속 expectedRevision 불일치 시 계산 결과 대신 book_changed를 반환한다. 호출 사이 스냅샷을 고정/보관하지 않으므로 첫 탐색부터 재조회해야 한다. 요약 합계는 페이지 전체 대상이며 상세·관계·이력은 offset/limit/nextOffset(약 600KB 경계)로 이어 읽는다. 큰 원본 한 건은 자르지 않는다.
+- 인증은 기존 Clerk OAuth 온라인 검증, 정확한 /mcp audience·허용 client ID·profile scope·만료/취소 검사와 계정 격리를 유지한다. 웹 세션 쿠키·공유 secret로 대체하지 않는다. 기존 MCP_RESOURCE_URL, CLERK_AUTHORIZATION_SERVER, CLERK_OAUTH_CLIENT_ID, CLERK_SECRET_KEY, DATABASE_URL을 사용하며 설정 누락 503·인증 실패 401·scope 부족 403이다. 응답은 private/no-store다. 운영 연결 주소는 https://moneybook.spiritflag.work/mcp이며 새 버전 배포 후 클라이언트 도구 목록을 새로고침해야 한다.
+- 검증은 mcp-exploration.test.ts의 계산/SDK 탐색, mcp.test.ts의 인증·격리·프로토콜·원장/소비, buddy-review.test.ts의 평가 도구 부재, test:db의 실제 SELECT 전후 revision/payload 보존으로 구성한다. check-paused-features.mjs는 폐기된 버디 경로 차단과 무인증 MCP 거절을 확인한다. 실제 운영 OAuth 연결과 실거래 탐색은 운영 배포 뒤 별도 검증한다. 로컬 HTTP 서버와 공식 MCP SDK로 주간 탐색→의료비 검색→보험금 연결→revision 변경을 검증했고, 격리 Neon DB의 SELECT reader도 조회 전후 장부와 revision을 보존했다.
 
 npm run dev → http://localhost:4320. Clerk 미들웨어의 로컬 rewrite와 일치하도록 dev/start의 hostname을 localhost로 통일했다. 이전 보관 웹 4318과 별개다. 개발 서버와 빌드를 동시에 시작하면 생성 타입 파일이 충돌할 수 있다. 최종 브라우저 검증 및 현재 실행은 npm run build 후 npm start를 사용했다. 이전 인증 작업의 개발 모드 반복 새로고침 원인은 미해결이며 이번 DB 연결의 프로덕션 빌드 실행에서는 발생하지 않았다.
 
