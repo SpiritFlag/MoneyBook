@@ -5,7 +5,7 @@ import { type Asset } from "@/lib/asset";
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight } from "lucide-react";
-import { incomeCategories, netConsumption, cancelled, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
+import { incomeCategories, netConsumption, cancelled, cancellationAmount, insuranceRecovered, expenseHref, type Operation } from "@/lib/operations";
 import { dominantCategory, categories, dailyExpensePresentation, consumptionMinor, hasLoanPrincipal, type Expense } from "@/lib/expense";
 
 function stamp(date: string, time: string | null) {
@@ -33,6 +33,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
       const transaction = row.expense;
       const category = { ...categories[dominantCategory(transaction)], label: categories[transaction.category].label };
       const shared = transaction.shared;
+      const hasCancellation = cancellationAmount(transaction, operations) > 0;
       const won = netConsumption(transaction, operations);
       const display = dailyExpensePresentation(transaction, date);
       return <li key={transaction.id} className="px-2 sm:px-3">
@@ -45,10 +46,10 @@ export function TransactionList({ transactions, date, operations = [], assets = 
           <p className="mt-2 text-xs leading-6 text-muted-foreground"><span className="tabular-nums">{stamp(display.date, display.time)}</span><span className="mx-2" aria-hidden="true">·</span>{transaction.paymentMethod}<span className="mx-2" aria-hidden="true">·</span>{category.label}</p>
           {hasLoanPrincipal(transaction) ? <p className="mt-1 text-xs text-primary">대출 원금 소비 제외 · 결제 {formatMoney(transaction.paidAmount, transaction.currency)}</p> : null}
           {display.kind !== "normal" ? <p className="transaction-context mt-2 inline-block max-w-full rounded-lg px-3 py-2 text-xs leading-5">{display.kind === "recurring" ? `정기결제　이용 ${transaction.useDate.replaceAll("-", ".")} → ${transaction.useEnd?.replaceAll("-", ".") ?? "종료일 미확인"}` : display.kind === "usage-only" ? `결제 ${stamp(transaction.paymentDate, transaction.time)}` : `이용 ${stamp(transaction.useDate, transaction.useTime)}`}</p> : null}
-          {cancelled(transaction.id, operations) ? <p className="mt-1 text-xs text-amber-800">전액 취소</p> : insuranceRecovered(transaction.id, operations) > 0 ? <p className="mt-1 text-xs text-primary">보험금 반영</p> : null}
+          {cancelled(transaction.id, operations) ? <p className="mt-1 text-xs text-amber-800">전액 취소</p> : hasCancellation ? <p className="mt-1 text-xs text-amber-800">부분 취소 반영</p> : insuranceRecovered(transaction.id, operations) > 0 ? <p className="mt-1 text-xs text-primary">보험금 반영</p> : null}
         </div>
         <div className="shrink-0 text-right tabular-nums">
-          <p className="text-base font-semibold sm:text-lg">{cancelled(transaction.id, operations) ? formatMinor(0, transaction.currency) : insuranceRecovered(transaction.id, operations) > 0 ? formatMinor(netConsumption(transaction, operations) ?? 0, "KRW") : formatMinor(consumptionMinor(transaction), transaction.currency)}</p>
+          <p className="text-base font-semibold sm:text-lg">{cancelled(transaction.id, operations) ? formatMinor(0, transaction.currency) : hasCancellation || insuranceRecovered(transaction.id, operations) > 0 ? formatMinor(netConsumption(transaction, operations) ?? 0, "KRW") : formatMinor(consumptionMinor(transaction), transaction.currency)}</p>
           {transaction.currency !== "KRW" ? <p className="mt-1 text-sm text-primary">{won === null ? "원화 미확정" : `원화 ${formatMinor(won, "KRW")}`}</p> : null}
           {shared ? <><p className="mt-1 text-xs font-medium text-primary">본인 소비</p><p className="mt-1 text-xs text-muted-foreground">결제 {formatMoney(transaction.paidAmount, transaction.currency)}</p></> : null}
         </div>

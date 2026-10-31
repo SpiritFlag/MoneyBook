@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { requireLocal, readLocalBody, localJson } from "./local-api";
 import { createNeonRepository } from "./neon-repository";
+import { GET as cleanupTrash } from "../app/api/cron/trash/route";
 
 test("클라우드 API는 같은 화면의 요청을 허용하고 다른 사이트의 쓰기를 거절한다", async () => {
   const make = (origin: string, site = "same-origin") => new Request("https://moneybook.example/api/assets", { method: "POST", headers: { host: "moneybook.example", origin, "sec-fetch-site": site, "content-type": "application/json" }, body: "{}" });
@@ -14,4 +15,19 @@ test("클라우드 API는 같은 화면의 요청을 허용하고 다른 사이�
 test("DB 설정이나 인증이 없으면 로컬 저장으로 대체하지 않는다", () => {
   assert.throws(() => createNeonRepository("", ""), { status: 401 });
   assert.throws(() => createNeonRepository("user_test", ""), { status: 503 });
+});
+
+test("휴지통 정리 API는 비밀 미설정과 잘못된 Bearer 인증을 거절한다", async () => {
+  const previous = process.env.CRON_SECRET;
+  try {
+    delete process.env.CRON_SECRET;
+    const request = (authorization?: string) => new Request("https://moneybook.example/api/cron/trash", { headers: authorization ? { authorization } : {} });
+    assert.equal((await cleanupTrash(request("Bearer undefined"))).status, 401);
+    process.env.CRON_SECRET = "test-only-random-cleanup-secret";
+    assert.equal((await cleanupTrash(request())).status, 401);
+    assert.equal((await cleanupTrash(request("Bearer wrong-secret"))).status, 401);
+  } finally {
+    if (previous === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = previous;
+  }
 });

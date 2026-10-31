@@ -31,7 +31,7 @@ export const operationLabels = {
   transit: "대중교통",
   toll: "하이패스 이용",
   "toll-payment": "하이패스 출금",
-  cancel: "카드 전액 취소",
+  cancel: "카드 매출취소",
   statement: "카드 명세서",
   template: "자주 쓰는 거래",
 } as const;
@@ -119,6 +119,8 @@ export const operationInputSchema = z.object({
   verified: z.boolean(),
   payment: z.object({ assetId: text, date, time, amount }).nullable(),
   cancelRoute: z.enum(["exclude", "credit", "refund"]),
+  cancelScope: z.enum(["full", "partial"]).optional(),
+  sourceRevision: z.number().int().positive().optional(),
   template: expenseInputSchema.nullable(),
 });
 export type OperationInput = z.infer<typeof operationInputSchema>;
@@ -207,7 +209,24 @@ export function newRow(date: string, id: string): OperationRow {
   };
 }
 export function cancelled(id: string, ops: readonly Operation[]) {
-  return ops.some((o) => o.kind === "cancel" && o.sourceId === id);
+  return ops.some((o) => o.kind === "cancel" && o.sourceId === id && o.cancelScope !== "partial");
+}
+// Records without a scope are legacy full cancellations, including zero-amount exclusions.
+export function cancellationAmount(e: Expense, ops: readonly Operation[], route?: OperationInput["cancelRoute"]) {
+  const cancellations = ops.filter(o => o.kind === "cancel" && o.sourceId === e.id && (!route || o.cancelRoute === route));
+  if (cancellations.some(o => o.cancelScope === undefined)) return cardAmount(e) ?? 0;
+  return cancellations.reduce((sum, o) => sum + (toMinor(o.amount, "KRW") ?? 0), 0);
+}
+export function remainingCardAmount(e: Expense, ops: readonly Operation[]) {
+  const original = cardAmount(e);
+  return original === null ? null : original - cancellationAmount(e, ops);
+}
+export function cancellationConsumption(e: Expense, ops: readonly Operation[]) {
+  const original = consumptionKrw(e), approved = cardAmount(e);
+  if (cancelled(e.id, ops)) return original;
+  if (original === null || !approved) return 0;
+  // Shared and mixed-principal purchases keep their existing consumption proportions.
+  return Number((BigInt(original) * BigInt(cancellationAmount(e, ops)) + BigInt(Math.floor(approved / 2))) / BigInt(approved));
 }
 export function normalizeTransitOperation<T extends OperationInput>(input: T): T {
   if (input.kind !== "transit" || input.journey === undefined) return input;
@@ -230,7 +249,7 @@ export function netConsumption(e: Expense, ops: readonly Operation[]) {
     ? 0
     : original === null
       ? null
-      : original - insuranceRecovered(e.id, ops);
+      : original - (cancellationConsumption(e, ops) ?? 0) - insuranceRecovered(e.id, ops);
 }
 export function sharedRemaining(
   e: Expense,
@@ -238,9 +257,11 @@ export function sharedRemaining(
   excludeId = "",
 ) {
   if (cancelled(e.id, ops)) return 0;
+  const otherShare = (toMinor(e.paidAmount, e.currency) ?? 0) - ownMinor(e);
+  const approved = cardAmount(e);
+  const cancelledShare = approved ? Number((BigInt(otherShare) * BigInt(cancellationAmount(e, ops)) + BigInt(Math.floor(approved / 2))) / BigInt(approved)) : 0;
   return (
-    (toMinor(e.paidAmount, e.currency) ?? 0) -
-    ownMinor(e) -
+    otherShare - cancelledShare -
     ops
       .filter((o) => o.kind === "recovery" && o.id !== excludeId)
       .flatMap((o) => o.allocations)
@@ -302,14 +323,14 @@ export function statementRows(
           (c) =>
             c.kind === "cancel" &&
             c.sourceId === e.id &&
-            c.cancelRoute === "exclude",
+            c.cancelRoute === "exclude" && c.cancelScope !== "partial",
         ),
     )
     .map((e) => ({
       id: e.id,
       title: e.title,
       date: e.paymentDate,
-      amount: cardAmount(e),
+      amount: cardAmount(e) === null ? null : cardAmount(e)! - cancellationAmount(e, book.operations, "exclude"),
       href: `/transactions/${e.id}`,
       carried: e.paymentDate < input.start,
     }));
@@ -692,26 +713,30 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       const e = expense(op.sourceId);
       if (e.paymentKind !== "card")
         fail("카드 승인 거래에서 취소를 시작해 주세요.");
-      if (
-        book.operations.filter(
-          (o) => o.kind === "cancel" && o.sourceId === e.id,
-        ).length > 1
-      )
-        fail("이미 전액 취소가 연결되어 있어요.");
+      const others = book.operations.filter(o => o.id !== op.id);
+      if (op.cancelScope !== "partial" && cancelled(e.id, others)) fail("이미 전액 취소가 연결되어 있어요.");
+      const remaining = remainingCardAmount(e, others);
+      const unpricedDeletion = op.cancelScope === "full" && op.cancelRoute === "exclude" && (remaining === null || remaining === 0);
+      if (!unpricedDeletion && (op.cancelScope !== undefined || op.cancelRoute !== "exclude")) {
+        const value = money(op.amount, "KRW");
+        if (remaining === null || value <= 0 || value > remaining) fail(op.cancelScope === "partial" ? "취소금액은 남은 승인금액 이내여야 해요." : "전액 취소 금액은 남은 승인금액과 같아야 해요.");
+        if (op.cancelScope !== "partial" && value !== remaining) fail("전액 취소 금액은 남은 승인금액과 같아야 해요.");
+        if (op.cancelScope === "partial" && value === remaining && !cancelled(e.id, others)) fail("남은 금액 전체를 취소하려면 전액 취소를 선택해 주세요.");
+      }
       const billed = book.operations.find(
         (o) =>
           o.kind === "statement" && o.verified && o.selected.includes(e.id),
       );
-      if (op.cancelRoute === "exclude" && billed)
+      if (op.cancelRoute === "exclude" && billed?.payment && (op.id === verifyingId || op.date > billed.payment.date))
         fail(
-          "검산 완료된 승인은 명세서를 먼저 수정하거나 납부 후 처리 방식을 선택해 주세요.",
+          "이미 납부한 승인은 납부 후 처리 방식을 선택해 주세요.",
         );
       if (op.cancelRoute !== "exclude" && !billed?.payment)
         fail("납부 후 취소는 원승인의 실제 납부를 먼저 연결해 주세요.");
-      if (op.cancelRoute !== "exclude") {
-        if (cardAmount(e) === null || money(op.amount, "KRW") !== cardAmount(e))
-          fail("전액 취소 금액은 원승인의 확정 원화액과 같아야 해요.");
-      }
+      if (op.cancelScope !== undefined && op.date < (op.cancelRoute === "exclude" ? e.paymentDate : billed!.payment!.date)) fail("취소일은 승인일 또는 실제 납부일 이후여야 해요.");
+      if (op.cancelScope !== undefined && op.cancelRoute === "credit" && op.month <= billed!.month) fail("취소매출은 원명세서 다음 달 이후에 반영해 주세요.");
+      if (op.cancelScope !== undefined && op.cancelRoute === "credit" && op.month < op.date.slice(0, 7)) fail("취소매출 반영 월은 취소일보다 앞설 수 없어요.");
+      if (op.cancelScope === "partial" && (netConsumption(e, book.operations) ?? 0) < 0) fail("취소 후 소비보다 보험금이 커요. 보험금 배분을 먼저 정정해 주세요.");
       if (
         op.cancelRoute === "credit" &&
         !/^\d{4}-(0[1-9]|1[0-2])$/.test(op.month)

@@ -61,7 +61,7 @@ export function CardActivityView({ card, book, today }: { card: Card; book: Book
             <div className="max-w-full text-right tabular-nums"><p className="font-semibold">{formatMoney(row.amount, row.currency)}</p>{row.currency !== "KRW" && card.kind !== "debit" ? <p className="mt-1 text-xs text-primary">{row.krwAmount === null ? "원화 미확정" : `확정 원화 ${formatMinor(row.krwAmount, "KRW")}`}</p> : null}</div>
           </Link>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            {row.cancelled ? <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">전액 취소 · 원승인 보존</span> : null}
+            {row.cancelled ? <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">전액 취소 · 원승인 보존</span> : row.cancelledAmount ? <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">부분 취소 {formatMinor(row.cancelledAmount, "KRW")} · 원승인 보존</span> : null}
             {card.kind !== "debit" ? row.statement ? <Link className="rounded-full bg-secondary px-3 py-1 text-primary hover:underline" href={`/records/${row.statement.id}`}>{row.statement.month} · {row.statement.payment ? "납부 완료" : "명세서 검산 완료"}</Link>
               : row.draft ? <Link className="rounded-full bg-secondary px-3 py-1 text-primary hover:underline" href={`/records/${row.draft.id}/edit`}>{row.draft.month} · 임시저장 대조 중</Link>
                 : !row.cancelled ? <span className="rounded-full bg-secondary px-3 py-1 text-muted-foreground">명세서 대조 전</span> : null : null}

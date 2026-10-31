@@ -7,8 +7,9 @@ import { Button } from "./ui/button";
 import { DemoNotice, LedgerState } from "./ledger-state";
 import { ExpenseForm } from "./expense-form";
 import { ExpenseReceipt } from "./expense-receipt";
+import { TrashButton } from "./trash-button";
 import { useBook } from "@/lib/use-operations";
-import { netConsumption, cancelled, sharedRemaining, insuranceRecovered, operationLabels } from "@/lib/operations";
+import { netConsumption, cancelled, cancellationAmount, sharedRemaining, insuranceRecovered, operationLabels } from "@/lib/operations";
 import { dominantCategory, categories, ownMinor, consumptionMinor, hasLoanPrincipal } from "@/lib/expense";
 import { bookDate, parseDateQuery } from "@/lib/date";
 
@@ -24,11 +25,12 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
   const back = parseDateQuery(query.get("from")) ?? (item.useKind === "period" ? item.paymentDate : item.useDate);
   const krw = netConsumption(item, book.operations);
   const isCancelled = cancelled(id, book.operations);
+  const cancelledAmount = cancellationAmount(item, book.operations);
   const recovered = insuranceRecovered(id, book.operations) > 0;
   const fixedCurrency = book.gameCurrencies?.find(c => c.code === item.currency);
   const linked = book.operations.filter(o => o.sourceId === id || o.parentId === id || o.selected.includes(id) || o.allocations.some(a => a.targetId === id));
   const differentUse = item.useKind === "period" || item.useDate !== item.paymentDate || item.useTime !== item.time;
-  const personal = item.shared || recovered || isCancelled || hasLoanPrincipal(item);
+  const personal = item.shared || recovered || cancelledAmount > 0 || isCancelled || hasLoanPrincipal(item);
   return <>
     <header className="mb-6 flex items-center justify-between gap-3"><Link className="text-sm text-muted-foreground hover:text-primary" href={`/?date=${back}`}>← 일일 내역으로</Link><Button asChild variant="secondary"><Link href={`/transactions/${id}/edit`}>수정하기</Link></Button></header>
     {query.get("saved") === "1" ? <p role="status" className="mb-4 rounded-xl bg-secondary px-5 py-3 text-sm text-primary">저장했어요. 내역과 소비 합계에 반영했어요.</p> : null}
@@ -39,7 +41,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
           <h1 className="expense-title">{item.title}</h1>
           <p className="mt-4 text-sm text-muted-foreground">{item.paymentDate}{item.time ? ` · ${item.time}` : item.useKind === "period" ? "" : " · 시각 미확인"}</p>
           <p aria-label="전체 결제 금액" className={`expense-total ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>{formatMoney(item.paidAmount, item.currency)}</p>
-          {personal ? <div className="mt-4 space-y-1 text-sm"><p className="font-medium text-primary">{isCancelled ? "전액 취소 · 내 소비 0원" : `${recovered ? "보험금 반영 후 " : ""}내 소비 ${krw !== null ? formatMinor(krw, "KRW") : formatMinor(consumptionMinor(item), item.currency)}`}</p>{item.shared && item.currency !== "KRW" ? <p className="text-xs text-muted-foreground">내 몫 {formatMinor(ownMinor(item), item.currency)}</p> : null}</div> : null}
+          {personal ? <div className="mt-4 space-y-1 text-sm"><p className="font-medium text-primary">{isCancelled ? "전액 취소 · 내 소비 0원" : `${cancelledAmount > 0 ? "부분 취소 반영 후 " : recovered ? "보험금 반영 후 " : ""}내 소비 ${krw !== null ? formatMinor(krw, "KRW") : formatMinor(consumptionMinor(item), item.currency)}`}</p>{item.shared && item.currency !== "KRW" ? <p className="text-xs text-muted-foreground">내 몫 {formatMinor(ownMinor(item), item.currency)}</p> : null}</div> : null}
           {item.currency !== "KRW" ? <p className="mt-3 text-sm text-muted-foreground">{item.krwAmount === null ? "원화 미확정 · 합계에서 분리" : `${personal ? "전체 결제 원화 " : "원화 "}${formatMoney(item.krwAmount, "KRW")}`}</p> : null}
         </div>
         <Image src={category.image} alt="" width={360} height={360} loading="eager" sizes="(max-width: 640px) 42vw, 340px" className="expense-character" />
@@ -55,9 +57,9 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
           <details className="mt-5 text-xs text-muted-foreground"><summary className="w-fit">소비 반영 기준</summary><p className="mt-3 leading-6">{item.useKind === "period" ? item.allocation === "annual" ? "시작월부터 12개월 배분" : "시작월 정기지출" : `${bookDate(item.useDate, item.useTime)}의 일일 소비 · 05시 기준`}</p>{item.shared ? <p className="mt-2 leading-6">본인 부담액을 소비에 반영하고 전체 결제액은 원장에 기록해요.</p> : null}</details>
         </section>
         {item.memo ? <section className="border-t border-border/70 pt-7"><h2 className="mb-3 text-sm font-medium text-muted-foreground">메모</h2><p className="whitespace-pre-wrap break-words text-sm leading-7">{item.memo}</p></section> : null}
-        <section className="border-t border-border/70 pt-7"><h2 className="mb-4 text-sm font-medium text-muted-foreground">이 거래에서 이어서</h2><div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/records/new?kind=template&source=${id}`}>자주 쓰는 거래에 등록</Link></Button>{item.shared && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=recovery&source=${id}`}>분담금 회수 · 잔여 {formatMinor(sharedRemaining(item, book.operations), item.currency)}</Link></Button> : null}{item.category === "medical" && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=insurance&source=${id}`}>보험금 회수</Link></Button> : null}{item.paymentKind === "card" && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=cancel&source=${id}`}>전액 취소 기록</Link></Button> : null}</div>{linked.length ? <ul className="mt-5 space-y-3">{linked.map(o => <li key={o.id}><Link className="text-sm text-primary hover:underline" href={`/records/${o.id}`}>{operationLabels[o.kind]} · {o.title} →</Link></li>)}</ul> : null}</section>
+        <section className="border-t border-border/70 pt-7"><h2 className="mb-4 text-sm font-medium text-muted-foreground">이 거래에서 이어서</h2><div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/records/new?kind=template&source=${id}`}>자주 쓰는 거래에 등록</Link></Button>{item.shared && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=recovery&source=${id}`}>분담금 회수 · 잔여 {formatMinor(sharedRemaining(item, book.operations), item.currency)}</Link></Button> : null}{item.category === "medical" && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=insurance&source=${id}`}>보험금 회수</Link></Button> : null}{item.paymentKind === "card" && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=cancel&source=${id}`}>전액·부분 취소</Link></Button> : null}</div>{linked.length ? <ul className="mt-5 space-y-3">{linked.map(o => <li key={o.id}><Link className="text-sm text-primary hover:underline" href={`/records/${o.id}`}>{operationLabels[o.kind]} · {o.title} →</Link></li>)}</ul> : null}</section>
         <Link className="inline-block text-sm font-medium text-primary" href={`/month?month=${(item.useKind === "once" ? bookDate(item.useDate, item.useTime) : item.useDate).slice(0, 7)}`}>이용월의 소비 살펴보기 →</Link>
       </div>
-    </article><DemoNotice />
+    </article><div className="mt-6"><TrashButton kind="expense" id={id} revision={item.revision} title={item.title} /></div><DemoNotice />
   </>;
 }

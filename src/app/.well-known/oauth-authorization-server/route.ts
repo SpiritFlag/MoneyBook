@@ -1,9 +1,11 @@
 import { metadataCorsOptionsRequestHandler } from "mcp-handler";
 import { mcpConfig } from "@/lib/mcp-auth";
+import { features, unavailableFeatureResponse } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 // Compatibility discovery for older MCP clients; keep Clerk's real issuer/endpoints intact.
 export async function GET() {
+  if (!features.mcp) return unavailableFeatureResponse();
   try {
     const { issuer } = mcpConfig();
     const response = await fetch(`${issuer}/.well-known/oauth-authorization-server`, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
@@ -15,4 +17,7 @@ export async function GET() {
     return Response.json({ error: "oauth_metadata_unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
-export const OPTIONS = metadataCorsOptionsRequestHandler();
+export function OPTIONS() {
+  if (!features.mcp) return unavailableFeatureResponse();
+  return metadataCorsOptionsRequestHandler()();
+}

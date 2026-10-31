@@ -20,6 +20,7 @@ import {
 
 import { assetLedger, signedMinor } from "@/lib/asset";
 import { CardList } from "./card-list";
+import { TrashButton } from "./trash-button";
 import { OperationForm } from "./operation-form";
 import { TransitJourney } from "./transit-journey";
 import { LedgerState, DemoNotice } from "./ledger-state";
@@ -321,6 +322,7 @@ export function RecordPage({
           <Link href={`/records/${id}/edit`}>기록 수정</Link>
         </Button>
       </header>
+      <div className="mb-6">{op.parentId ? <Link className="text-sm text-primary" href={`/transactions/${op.parentId}`}>연결된 지출에서 함께 삭제 →</Link> : <TrashButton kind="operation" id={op.id} revision={op.revision} title={op.title} />}</div>
       {query.get("saved") ? (
         <p
           role="status"
@@ -503,9 +505,9 @@ export function RecordPage({
           ) : null}
           {op.kind === "cancel" ? (
             <p className="rounded-xl bg-secondary/50 p-4 text-sm">
-              원거래의 소비 반영을 취소했어요.{" "}
+              {op.cancelScope === "partial" ? "부분 취소금액만큼 원래 소비에서 차감했어요." : "원거래의 소비 반영을 취소했어요."}{" "}
               {op.cancelRoute === "exclude"
-                ? "청구 대상 제외"
+                ? "대금 출금 전 · 해당 명세서 조정"
                 : op.cancelRoute === "credit"
                   ? `${op.month} 명세서 차감`
                   : op.payment
