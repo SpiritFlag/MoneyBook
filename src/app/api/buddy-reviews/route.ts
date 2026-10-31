@@ -3,10 +3,12 @@ import { buddyMonthSchema } from "@/lib/buddy-review";
 import { createNeonBuddyReviews } from "@/lib/neon-buddy-review";
 import { RepositoryError } from "@/lib/expense-repository";
 import { localJson, localFailure, requireLocal } from "@/lib/local-api";
+import { features, unavailableFeatureResponse } from "@/lib/features";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // The web exposes only GET. Saving reviews is an authenticated MCP operation.
 export async function GET(request: Request) {
+  if (!features.buddyReviews) return unavailableFeatureResponse();
   try {
     requireLocal(request);
     const { userId } = await auth();

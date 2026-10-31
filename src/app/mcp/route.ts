@@ -4,14 +4,16 @@ import { mcpAuthOptions, mcpConfig, oauthIdentity } from "@/lib/mcp-auth";
 import { createMoneybookMcpHandler } from "@/lib/mcp-server";
 import { createNeonBookReader } from "@/lib/neon-repository";
 import { createNeonBuddyReviews } from "@/lib/neon-buddy-review";
+import { features, unavailableFeatureResponse } from "@/lib/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const handler = createMoneybookMcpHandler(userId => createNeonBookReader(userId, process.env.DATABASE_URL ?? "")(), userId => createNeonBuddyReviews(userId, process.env.DATABASE_URL ?? ""));
+const handler = features.mcp ? createMoneybookMcpHandler(userId => createNeonBookReader(userId, process.env.DATABASE_URL ?? "")(), userId => createNeonBuddyReviews(userId, process.env.DATABASE_URL ?? "")) : null;
 
 async function authenticated(request: Request) {
+  if (!handler || !features.mcp) return unavailableFeatureResponse();
   let config;
   try { config = mcpConfig(); } catch {
     return Response.json({ error: "oauth_not_configured" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
@@ -29,3 +31,8 @@ async function authenticated(request: Request) {
 }
 
 export { authenticated as GET, authenticated as POST, authenticated as DELETE };
+
+export function OPTIONS() {
+  if (!features.mcp) return unavailableFeatureResponse();
+  return new Response(null, { status: 204, headers: { Allow: "GET, HEAD, POST, DELETE, OPTIONS", "Cache-Control": "private, no-store" } });
+}

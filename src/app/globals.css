@@ -111,15 +111,17 @@
 .expense-character { width: 100%; height: auto; max-height: 360px; object-fit: contain; }
 .expense-body { padding: 1.75rem 2.25rem 2.5rem; display: grid; gap: 2.5rem; }
 .receipt-timeline { position: relative; margin: 0; padding: 0; list-style: none; }
-.receipt-timeline::before { content: ""; position: absolute; left: 5px; top: .7rem; bottom: .7rem; width: 1px; background: #d0dfc9; }
 .receipt-root { position: relative; padding: 0 0 1.75rem 2.25rem; }
 .receipt-root:last-child { padding-bottom: 0; }
-.receipt-root::before { content: ""; position: absolute; left: 0; top: .4rem; width: 11px; height: 11px; border-radius: 50%; background: #769b6c; box-shadow: 0 0 0 5px #fffef8; }
+.receipt-root::before { content: ""; position: absolute; z-index: 1; left: 0; top: .4rem; width: 11px; height: 11px; border-radius: 50%; background: #769b6c; box-shadow: 0 0 0 5px #fffef8; }
+.receipt-root:not(:last-child)::after { content: ""; position: absolute; left: 5px; top: .7rem; bottom: -.7rem; width: 1px; background: #d0dfc9; }
 .receipt-line { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; line-height: 1.7; }
 .receipt-amount { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .receipt-branches { margin: 1rem 0 0 .5rem; padding: 0; list-style: none; color: #5d7b54; }
-.receipt-branches > li { position: relative; padding: .2rem 0 .2rem 1.35rem; border-left: 1px solid #cbdcc3; }
+.receipt-branches > li { position: relative; padding: .2rem 0 .2rem 1.35rem; }
 .receipt-branches > li::before { content: ""; position: absolute; width: .8rem; height: 1px; left: 0; top: 1rem; background: #cbdcc3; }
+.receipt-branches > li::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1px; background: #cbdcc3; }
+.receipt-branches > li:last-child::after { bottom: auto; height: 1rem; }
 .receipt-discount { color: #5d7b54; }
 .expense-payment { border: 1px solid var(--border); border-radius: 1.5rem; padding: 1.5rem; }
 @media (min-width: 1024px) {

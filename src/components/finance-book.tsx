@@ -20,6 +20,7 @@ import {
 
 import { assetLedger, signedMinor } from "@/lib/asset";
 import { CardList } from "./card-list";
+import { TrashButton } from "./trash-button";
 import { OperationForm } from "./operation-form";
 import { TransitJourney } from "./transit-journey";
 import { LedgerState, DemoNotice } from "./ledger-state";
@@ -321,6 +322,7 @@ export function RecordPage({
           <Link href={`/records/${id}/edit`}>기록 수정</Link>
         </Button>
       </header>
+      <div className="mb-6">{op.parentId ? <Link className="text-sm text-primary" href={`/transactions/${op.parentId}`}>연결된 지출에서 함께 삭제 →</Link> : <TrashButton kind="operation" id={op.id} revision={op.revision} title={op.title} />}</div>
       {query.get("saved") ? (
         <p
           role="status"

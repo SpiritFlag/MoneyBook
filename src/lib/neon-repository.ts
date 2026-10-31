@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { createBookRepository, storedSchema, RepositoryError, type Book, type BookStorage, type PersistBook } from "./expense-repository";
+import { TRASH_RETENTION_MS } from "./trash";
 
 type Snapshot = { revision: number; book: Book };
 const emptyBook = (): Book => ({ version: 1, gameCurrencies: [], cards: [], expenses: [], assets: [], operations: [], loans: [] });
@@ -7,6 +8,27 @@ class WriteConflict extends Error {}
 
 // 같은 서버에 동시에 도착한 조회만 합칩니다. 완료된 데이터는 서버에 캐시하지 않습니다.
 const reads = new Map<string, Promise<Snapshot>>();
+
+// One atomic UPDATE preserves concurrent edits via the same book revision used by writers.
+export async function purgeExpiredNeonTrash(connectionString: string) {
+  if (!connectionString) throw new RepositoryError("DB 연결 설정이 필요해요.", 503);
+  const sql = neon(connectionString);
+  const cutoff = new Date(Date.now() - TRASH_RETENTION_MS).toISOString();
+  const rows = await sql`
+    UPDATE moneybook.books
+    SET payload = jsonb_set(payload, '{trash}', COALESCE((
+      SELECT jsonb_agg(entry ORDER BY position)
+      FROM jsonb_array_elements(payload->'trash') WITH ORDINALITY AS entries(entry, position)
+      WHERE (entry->>'deletedAt')::timestamptz > ${cutoff}::timestamptz
+    ), '[]'::jsonb)), revision = revision + 1, updated_at = now()
+    WHERE EXISTS (
+      SELECT 1 FROM jsonb_array_elements(COALESCE(payload->'trash', '[]'::jsonb)) AS entries(entry)
+      WHERE (entry->>'deletedAt')::timestamptz <= ${cutoff}::timestamptz
+    )
+    RETURNING owner_id`;
+  reads.clear();
+  return rows.length;
+}
 
 function neonBookSource(userId: string, connectionString: string) {
   if (!userId) throw new RepositoryError("로그인이 필요해요.", 401);

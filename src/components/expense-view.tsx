@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { DemoNotice, LedgerState } from "./ledger-state";
 import { ExpenseForm } from "./expense-form";
 import { ExpenseReceipt } from "./expense-receipt";
+import { TrashButton } from "./trash-button";
 import { useBook } from "@/lib/use-operations";
 import { netConsumption, cancelled, cancellationAmount, sharedRemaining, insuranceRecovered, operationLabels } from "@/lib/operations";
 import { dominantCategory, categories, ownMinor, consumptionMinor, hasLoanPrincipal } from "@/lib/expense";
@@ -59,6 +60,6 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
         <section className="border-t border-border/70 pt-7"><h2 className="mb-4 text-sm font-medium text-muted-foreground">이 거래에서 이어서</h2><div className="flex flex-wrap gap-2"><Button asChild variant="secondary"><Link href={`/records/new?kind=template&source=${id}`}>자주 쓰는 거래에 등록</Link></Button>{item.shared && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=recovery&source=${id}`}>분담금 회수 · 잔여 {formatMinor(sharedRemaining(item, book.operations), item.currency)}</Link></Button> : null}{item.category === "medical" && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=insurance&source=${id}`}>보험금 회수</Link></Button> : null}{item.paymentKind === "card" && !isCancelled ? <Button asChild variant="secondary"><Link href={`/records/new?kind=cancel&source=${id}`}>전액·부분 취소</Link></Button> : null}</div>{linked.length ? <ul className="mt-5 space-y-3">{linked.map(o => <li key={o.id}><Link className="text-sm text-primary hover:underline" href={`/records/${o.id}`}>{operationLabels[o.kind]} · {o.title} →</Link></li>)}</ul> : null}</section>
         <Link className="inline-block text-sm font-medium text-primary" href={`/month?month=${(item.useKind === "once" ? bookDate(item.useDate, item.useTime) : item.useDate).slice(0, 7)}`}>이용월의 소비 살펴보기 →</Link>
       </div>
-    </article><DemoNotice />
+    </article><div className="mt-6"><TrashButton kind="expense" id={id} revision={item.revision} title={item.title} /></div><DemoNotice />
   </>;
 }

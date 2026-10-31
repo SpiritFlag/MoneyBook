@@ -1,10 +1,10 @@
 # MoneyBook — 시스템의 현재 모습
 
-2026-10-27 기준. 제품 방향은 VISION.md, 협업 규칙은 AGENTS.md를 따른다.
+2026-10-31 기준. 제품 방향은 VISION.md, 협업 규칙은 AGENTS.md를 따른다.
 
 ## 현재 구현
 
-**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자는 보류했다. 대출 노트는 가계부와 독립적으로 계정별 Neon 장부에 저장하며 웹·조회 전용 MCP에서 확인한다. 공통 Clerk 로그인을 사용한다.
+**지출·자산·이동·카드·정산·교통·템플릿의 입력 → 저장 → 상세 → 수정 → 원장·소비 갱신을 연결한 장부다.** 종합 대시보드와 투자는 보류했다. 대출 노트는 가계부와 독립적으로 계정별 Neon 장부에 저장하며 웹에서 확인한다. 공통 Clerk 로그인을 사용한다. 버디의 평가와 MCP는 구현·데이터를 보존한 채 일시 중단한다.
 
 - 공개 저장소는 git@github.com:SpiritFlag/MoneyBook.git. 레거시 Git 이력·실거래·비공개 환경 설정을 가져오지 않았다.
 - Next.js 16.4.2 / React 19.3.1 / TypeScript 6.0.3 / Tailwind CSS 4.3.3 / shadcn Button·Radix Slot / SWR / Zod를 사용한다.
@@ -19,7 +19,7 @@
 | /transactions/new | 지출 입력. date, asset, template 쿼리로 시작 날짜·자산·템플릿을 전달한다. |
 | /transactions/[id], /edit | 원거래 상세·수정. 회수·보험금·취소·템플릿 등록 및 연결된 금융 기록으로 이동한다. |
 | /month?month=YYYY-MM | 일일 소비와 정기지출을 구분한 월간 합계. 보험금·전액 취소 반영 후 금액을 보여준다. |
-| /buddy?month=YYYY-MM | 버디의 평가. 월별 전체 소비, 자유 복수 태그·지출별 멘트·월 전체 평가와 거래 확인 기준시각을 조회한다. 웹 편집은 제공하지 않는다. |
+| /buddy?month=YYYY-MM | 현재 메뉴에서 숨기고 직접 접속도 404. 월별 평가 조회 화면은 재개를 위해 보존한다. |
 | /assets, /assets/new, /assets/[id], /edit | 자산 현황·추가·입출금 원장·환율 수정. |
 | /loans, /loans/[id] | 로그인한 계정의 대출 목록·상세. 목록 API는 이력을 제외한 요약, 상세 API는 해당 계정의 대출 한 건을 반환한다. 상환 예정표·납부 이력·대출 조건을 조회하며 실제 자료를 코드에 포함하지 않는다. |
 | /income | 수입·입금 목록과 입력. |
@@ -30,6 +30,9 @@
 | /templates | 사용자가 직접 저장한 지출 템플릿과 새 입력으로 불러오기. |
 | /records/new?kind=...&source=... | 종류에 따른 금융 기록 입력. |
 | /records/[id], /edit | 금융 기록 상세·수정, 원거래 및 자산 전후 잔액 연결. |
+| /trash | 삭제한 지출·금융 기록의 보관 만료 시각과 복원. 지출과 함께 입력한 충전은 묶어서 보관한다. |
+| /api/trash | 인증된 GET(휴지통), DELETE(이동), POST(복원). 삭제는 원거래 revision을 확인한다. |
+| /api/cron/trash | CRON_SECRET Bearer 인증으로 만료 항목을 전체 장부에서 원자적으로 제거한다. |
 | /api/expenses, /api/assets, /api/operations | 각 데이터의 인증된 GET·POST·PUT. Zod 검증과 수정 충돌 검사. |
 
 - lib/expense.ts: 지출 스키마, 최소 단위 금액, 영수증 검산, 날짜별 소비, 수동 표시 순서.
@@ -47,6 +50,11 @@
 - 없는 기록은 클라이언트 안내 화면으로 처리하며 HTTP 404를 보장하지 않는다.
 
 ## 소비와 원장 규칙
+
+- 거래 상세의 삭제는 `Book.trash`에 원본을 보관하고 활성 expenses·operations에서 제거한다. 따라서 일일·월간·원장·조회 MCP의 계산에서 즉시 제외한다. 복원은 원래 ID·입력·명세를 보존하고 revision을 올리며 현재 장부 연결 검증을 다시 통과해야 한다. 웹 SWR 캐시는 계정별 provider의 mutate로 갱신한다.
+- 삭제 시점부터 정확히 30×24시간 동안 복원할 수 있다. 만료 항목은 장부 조회·쓰기에서 정리하고 Vercel Cron이 매일 19:00 UTC(한국 시간 다음 날 04:00)에 접속하지 않은 장부도 정리한다. 물리 제거는 만료 후 첫 장부 조회·저장 또는 정기 작업 때 이뤄진다. 운영 정기 작업은 `CRON_SECRET` 설정과 새 배포가 필요하며 미설정·인증 실패 요청은 거절한다. DB 백업 보존 정책은 변경하지 않는다.
+- 지출과 함께 입력한 연결 충전은 함께 삭제·복원한다. 보험·분담금·취소·명세서·환산 기준 등 다른 활성 기록이 참조하면 해당 연결을 먼저 정정하거나 연결 기록을 먼저 휴지통으로 옮겨야 한다. 남은 지출의 삭제된 거래에 대한 수동 순서 기준은 해제한다. 자산·카드·대출 삭제와 수동 즉시 영구 삭제는 제공하지 않는다.
+- 휴지통 회귀 테스트는 `src/lib/trash.test.ts`, 별도 Neon 테스트 DB 검증은 `npx tsx scripts/test-trash-neon.ts`다. DB 테스트는 기존 `.env.neon-test.local`의 전용 DB 표시와 앱 DB와 다른 호스트를 확인한 뒤 생성한 테스트 계정만 사용한다.
 
 - 모든 시각 입력은 TimeInput을 공유한다. native time의 로케일별 오전/오후 UI 대신 HH:mm 텍스트 입력과 숫자 키보드 힌트를 사용한다. 네 자리 숫자는 즉시 HH:mm으로 바꾸고 잘못된 시각은 저장 검증에서 거절한다.
 - ExpenseInput.useDateFollowsPayment는 이용일 자동 연결 여부다. 신규는 true, 이용일 직접 수정은 false, 다시 연결 버튼은 true로 저장한다. 필드가 없는 기존 기록은 두 날짜가 같은지로 초기 연결 여부를 판단하며 저장된 날짜를 자동 재작성하지 않는다.
@@ -109,7 +117,15 @@
 
 ## 실행과 검증
 
-### 버디의 월별 평가
+### 버디 평가·MCP 중단과 재개
+
+- `src/lib/features.ts`의 `buddyReviews`와 `mcp`는 모두 false다. 환경변수·OAuth 설정 유무나 유효한 기존 토큰과 무관하게 진입점에서 차단하며 설정 변경에는 빌드·배포가 필요하다. 메뉴도 같은 설정을 따른다.
+- `/buddy`는 proxy에서 404/private no-store로 종료하고 페이지에도 notFound 방어를 둔다. 스트리밍 레이아웃으로 인한 200 응답을 방지한다. `/api/buddy-reviews` GET·HEAD와 `/mcp` GET·HEAD·POST·DELETE·OPTIONS, OAuth discovery 세 경로의 GET·HEAD·OPTIONS도 인증·DB 조회 전에 404/private no-store로 종료한다. 중단 중 MCP 핸들러는 생성하지 않는다.
+- 기존 평가 테이블·장부·Clerk OAuth 앱·scope·운영 환경변수는 변경하거나 삭제하지 않는다. 아래 두 절은 재개를 위해 보존한 구현을 설명한다.
+- 재개는 사용자와 합의한 뒤 필요한 플래그를 true로 바꾸고, 기존 OAuth 환경변수와 로그인·계정 격리·실제 연결을 검증하여 Git 기반 배포한다. 평가 작성까지 재개하려면 두 플래그가 모두 켜져 있어야 한다. 클라이언트는 MCP 연결·도구 목록을 새로고침한다. DB를 초기화하거나 평가 migration을 되돌릴 필요는 없다.
+- 중단 검증은 `npm run build` 후 `node scripts/check-paused-features.mjs`로 임시 로컬 서버의 페이지·API·MCP·discovery 응답을 확인한다. 기존 평가·MCP SDK 테스트는 유지해 재개 가능한 구현도 검증한다.
+
+### 보존한 버디 월별 평가 구현
 
 - `lib/buddy-review.ts`는 기존 `consumptionRecords`·`monthAmount`를 재사용한다. 05시 이용일, 정기·연간 배분, 교통·하이패스 파생 소비, 본인 부담·취소·보험금을 기존 월간 소비와 동일하게 반영한다. 미확정 원화는 추정하지 않는다. 목록에 원래 지출과 연결 금융 기록을 보존한다.
 - `migrations/002_buddy_reviews.sql`의 별도 `moneybook.buddy_reviews` 테이블에 계정·월별 append-only revision을 저장한다. 기존 `moneybook.books` JSONB와 revision은 평가 저장으로 변경하지 않는다. 동일 요청 키·본문은 같은 결과로 replay하며, 다른 내용의 키 재사용과 버전·목록 지문 충돌은 거절한다. DB INSERT는 원장 행의 공유 잠금과 revision 비교로 동시 변경을 검증한다.
@@ -119,7 +135,7 @@
 - `npm run db:migrate`는 번호순 SQL migration을 적용한다. 기존 테이블은 변경하지 않는 002를 격리 Neon 브랜치에서 검증한 후 운영에 적용한다. 테스트 112개, 별도 Neon 저장·재시도·동시성·계정 격리·원장 보존 검증을 추가했다.
 - 2026-10-25 운영 반영: 격리 `moneybook-integration`에서 002와 저장·동시성·격리·원장 보존을 검증한 뒤 production에 평가 테이블만 추가했다. 기존 장부·revision의 내용 해시를 전후 대조하고 비공개 백업을 보관했다. 배포 `dpl_5zZCcWFHGrKvtMC2dBcSmptzCoCk`를 운영 환경으로 빌드·검증한 후 `moneybook.spiritflag.work`에 promote했다. 실제 로그인 계정의 월별 전체 목록과 기존 OAuth MCP overview의 새 평가 안내를 확인했다. 운영 검증용 평가는 저장하지 않았다. 새 MCP 도구를 사용하려면 클라이언트의 도구 목록을 새로고침한다.
 
-### MCP 조회와 평가 저장
+### 보존한 MCP 조회와 평가 저장 구현
 
 - `/mcp`는 `mcp-handler` 2와 MCP SDK 2의 stateless HTTP 서버다. 2026-07-28 프로토콜 및 2025 Streamable HTTP 호환을 제공하며 Redis·메모리 세션은 사용하지 않는다. 평가 전용 `save_buddy_review`가 유일한 쓰기 도구이고 금융 기록·대출 쓰기와 프롬프트·이벤트 구독은 제공하지 않는다.
 - 도구는 기존 장부 조회 12개에 `get_asset_overview`, `get_loan_overview`, `get_loan_detail`, `list_loan_records`를 더한 16개다. `moneybook://guide` 리소스에 날짜·통화·소비·페이지 해석 규칙을 제공한다. 저장된 상품·할인·메모·교통 여정·정산 배분·명세서 초안·템플릿·대출을 조회할 수 있다. 이전 보관 웹의 장부는 대상이 아니다.
