@@ -38,6 +38,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
   const requestId = useRef(existing?.id ?? "");
   const errorRef = useRef<HTMLDivElement>(null);
   function change(next: ExpenseInput) {
+    if (next.useKind === "once") next = { ...next, monthlyRecurring: false };
     if (next.useKind === "period") next = { ...next, useTime: null, useTimeFollowsPayment: false };
     const definition = currencyDefinitions.data?.find(c => c.code === next.currency);
     if (definition) {
@@ -94,6 +95,7 @@ export function ExpenseForm({ date, existing, initialAsset, initialDraft }: { da
         <div className="min-w-0 space-y-5">
           <FormSection number="01" title="실제 결제">
             <div className="mb-6 flex flex-wrap gap-2">{(["once", "period"] as const).map((kind) => <Button type="button" key={kind} variant={value.useKind === kind ? "secondary" : "ghost"} aria-pressed={value.useKind === kind} onClick={() => change({ ...value, useKind: kind, ...(kind === "once" && value.useKind === "period" ? { useTime: value.time, useTimeFollowsPayment: true } : {}) })}>{value.useKind === kind ? <Check size={14} /> : null}{kind === "once" ? "일회성 이용" : "기간형 이용"}</Button>)}</div>
+            {value.useKind === "period" ? <label className="mb-5 flex items-center gap-2 text-sm"><input type="checkbox" checked={value.monthlyRecurring ?? false} onChange={e => field("monthlyRecurring", e.target.checked)} />매월 반복<span className="text-xs text-muted-foreground">반복 거래 관리에 표시해요</span></label> : null}
             <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
               <Field label={card ? "카드 승인금액" : "실제 결제 총액"} hint="명세를 바꿔도 이 금액은 자동으로 바뀌지 않아요."><input autoFocus className="form-control amount-input" inputMode="decimal" value={value.paidAmount} placeholder="0" onChange={(e) => field("paidAmount", e.target.value)} /></Field>
               <Field label="결제 통화·재화"><select className="form-control" value={value.currency} onChange={(e) => { const currency = e.target.value as Currency; change({ ...value, currency, assetId: null, debitCardId: null, topup: null, krwAmount: null, valuationRate: null, valuationSource: null, paymentMethod: value.assetId ? "" : value.paymentMethod, receiptCurrency: value.receiptCurrency === value.currency ? currency : value.receiptCurrency }); }}>{Object.entries(currencies).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></Field>

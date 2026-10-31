@@ -6,7 +6,7 @@ import { BookOpen, CalendarDays, Plus, Wallet, ArrowLeftRight, CreditCard, HandC
 const links = [
   { href: "/", label: "일일 내역", icon: BookOpen }, { href: "/month", label: "월간 소비", icon: CalendarDays },
   ...(features.buddyReviews ? [{ href: "/buddy", label: "버디의 평가", icon: MessageCircle }] : []),
-  { href: "/transactions/new", label: "지출 기록", icon: Plus }, { href: "/assets", label: "자산 현황", icon: Wallet },
+  { href: "/transactions/new", label: "지출 기록", icon: Plus }, { href: "/recurring", label: "반복 거래 관리", icon: CalendarDays }, { href: "/assets", label: "자산 현황", icon: Wallet },
   { href: "/loans", label: "대출 노트", icon: Landmark },
   { href: "/income", label: "수입·입금", icon: CircleArrowDown }, { href: "/transfers", label: "이동·충전", icon: ArrowLeftRight },
   { href: "/cards", label: "카드 관리", icon: CreditCard }, { href: "/settlements", label: "정산·보험", icon: HandCoins },

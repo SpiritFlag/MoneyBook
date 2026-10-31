@@ -14,6 +14,7 @@ import { loanSampleSchema, loanBatchSchema, type LoanSample } from "./loan";
 import { trashEntrySchema, retainedTrash, type TrashEntry } from "./trash";
 import { loanPaymentInputSchema, loanPaymentExpense, loanScheduleKey, loanScheduleBasis, loansWithPayments, validateLoanPayments, type LoanPaymentInput } from "./loan-payment";
 import { monthlyLoanPayments } from "./monthly-loan-payments";
+import { recurringSeries, shiftMonth } from "./recurring";
 
 export class RepositoryError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "RepositoryError"; }
@@ -105,12 +106,18 @@ export function createBookRepository(storage: BookStorage) {
       }
       const expenses = book.expenses;
       const index = expenses.findIndex((e) => e.id === id);
+      if (input.monthlyRecurring && !input.recurringSourceId) input = { ...input, recurringSeriesId: index >= 0 ? expenses[index].recurringSeriesId ?? id : id };
       if (expectedRevision !== null && index < 0) throw new RepositoryError("수정할 거래를 찾을 수 없어요.", 404);
       if (expectedRevision === null && index >= 0) {
-        if (JSON.stringify(expenseInputSchema.parse(expenses[index])) !== JSON.stringify(input)) throw new RepositoryError("이 기록은 이미 저장됐어요. 일일 내역에서 다시 열어 수정해 주세요.", 409);
+        if (JSON.stringify(expenseInputSchema.parse(expenses[index])) !== JSON.stringify(expenseInputSchema.parse(input))) throw new RepositoryError("이 기록은 이미 저장됐어요. 일일 내역에서 다시 열어 수정해 주세요.", 409);
         return expenses;
       }
       if (index >= 0 && expenses[index].revision !== expectedRevision) throw new RepositoryError("다른 화면에서 이 거래가 바뀌었어요. 현재 입력을 복사해 두고 최신 거래를 다시 열어 주세요.", 409);
+      if (index < 0 && input.recurringSourceId) {
+        const source = expenses.find(e => e.id === input.recurringSourceId);
+        if (!source?.monthlyRecurring || source.useKind !== "period" || input.recurringSeriesId !== recurringSeries(source) || shiftMonth(input.paymentDate.slice(0, 7), -1) !== source.paymentDate.slice(0, 7)) throw new RepositoryError("지난달 반복 거래가 바뀌었어요. 반복 거래 관리에서 다시 불러와 주세요.", 409);
+      }
+      if (input.recurringSeriesId && expenses.some(e => e.id !== id && recurringSeries(e) === input.recurringSeriesId && e.paymentDate.slice(0, 7) === input.paymentDate.slice(0, 7))) throw new RepositoryError("이번 달에 이미 기록한 반복 거래예요. 반복 거래 관리에서 기존 기록을 확인해 주세요.", 409);
       const now = new Date().toISOString();
       const linked = book.operations.findIndex((o) => o.parentId === id && o.kind === "transfer");
       if (input.topup) {
