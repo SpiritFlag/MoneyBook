@@ -7,7 +7,7 @@ import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import { expenseInputSchema, expenseSchema, type Expense, type ExpenseInput } from "./expense";
-import { assetInputSchema, assetSchema, type AssetInput, type Asset } from "./asset";
+import { assetInputSchema, assetSchema, assetOrderSchema, type AssetOrderInput, type AssetInput, type Asset } from "./asset";
 import { operationInputSchema, operationSchema, normalizeTransitOperation, validateOperations, operationPostings, statementRows, statementTotal, newOperation, newRow, type Operation, type OperationInput } from "./operations";
 import { seedExpenses } from "./seed-expenses";
 import { loanSampleSchema, loanBatchSchema, type LoanSample } from "./loan";
@@ -127,6 +127,20 @@ export function createBookRepository(storage: BookStorage) {
       if (index >= 0) expenses[index] = record; else expenses.unshift(record);
       await write(book, persist);
       return expenses;
+    });
+  }
+  function reorderAssets(input: AssetOrderInput): Promise<Asset[]> {
+    const value = assetOrderSchema.parse(input);
+    return enqueue(async (book, persist) => {
+      const currentIds = book.assets.map(asset => asset.id);
+      const byId = new Map(book.assets.map(asset => [asset.id, asset]));
+      if (value.ids.length !== currentIds.length || value.ids.some(id => !byId.has(id))) throw new RepositoryError("자산 목록이 바뀌었어요. 최신 목록에서 순서를 다시 조절해 주세요.", 409);
+      if (value.ids.every((id, index) => id === currentIds[index])) return book.assets;
+      if (value.expectedIds.length !== currentIds.length || value.expectedIds.some((id, index) => id !== currentIds[index])) throw new RepositoryError("다른 화면에서 자산 순서가 바뀌었어요. 최신 목록에서 다시 조절해 주세요.", 409);
+      book.assets = value.ids.map(id => byId.get(id)!);
+      // Only permute existing records; leave asset revisions and financial data intact.
+      await persist(book);
+      return book.assets;
     });
   }
   function saveAsset(input: AssetInput, id: string, revision: number | null): Promise<Asset[]> {
@@ -340,7 +354,7 @@ export function createBookRepository(storage: BookStorage) {
       return { added, total: book.loans.length };
     });
   }
-  return { listMonthlyLoanPayments, saveLoanPayment, listTrash: async () => retainedTrash((await read()).trash ?? []), moveToTrash, restoreTrash, listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => { const book = await read(); return loansWithPayments(book.loans, book.expenses); }, importLoans, save, saveAsset, saveOperation };
+  return { reorderAssets, listMonthlyLoanPayments, saveLoanPayment, listTrash: async () => retainedTrash((await read()).trash ?? []), moveToTrash, restoreTrash, listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => { const book = await read(); return loansWithPayments(book.loans, book.expenses); }, importLoans, save, saveAsset, saveOperation };
 }
 
 // HMR 때 검증·저장 함수는 새로 만들고 쓰기 큐만 공유합니다.
