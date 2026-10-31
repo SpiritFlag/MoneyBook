@@ -17,6 +17,7 @@ export function TrashButton({ kind, id, revision, title }: { kind: "expense" | "
     try {
       await changeTrash("DELETE", { kind, id, revision });
       await Promise.allSettled(trashAffectedKeys.map(key => mutate(key)));
+      await mutate(key => typeof key === "string" && key.startsWith("/api/loans/"));
       router.push("/trash");
     } catch (error) { setError(error instanceof Error ? error.message : "삭제하지 못했어요."); setBusy(false); }
   }

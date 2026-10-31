@@ -20,6 +20,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
   if (!book || error) return <LedgerState error={error} retry={retry} />;
   const item = book.expenses.find(entry => entry.id === id);
   if (!item) return <div className="book-sheet rounded-3xl bg-card p-10"><h1 className="text-xl font-bold">거래를 찾을 수 없어요</h1><Link className="mt-5 block text-primary" href="/">일일 내역으로</Link></div>;
+  if (edit && item.loanPayment) return <div className="book-sheet rounded-3xl bg-card p-8"><p>대출에 연결된 원리금 납입이에요.</p><Link className="mt-4 block text-primary" href={`/loans/${encodeURIComponent(item.loanPayment.loanId)}?payment=${id}`}>대출 상세에서 납입 수정 →</Link></div>;
   if (edit) return <ExpenseForm key={id} date={item.useDate} existing={item} />;
   const category = { ...categories[dominantCategory(item)], label: categories[item.category].label };
   const back = parseDateQuery(query.get("from")) ?? (item.useKind === "period" ? item.paymentDate : item.useDate);
@@ -47,6 +48,7 @@ export function ExpenseView({ id, edit = false }: { id: string; edit?: boolean }
         <Image src={category.image} alt="" width={360} height={360} loading="eager" sizes="(max-width: 640px) 42vw, 340px" className="expense-character" />
       </header>
       <div className="expense-body">
+        {item.loanPayment ? <div className="rounded-xl bg-secondary/50 p-4 text-sm leading-7"><Link className="text-primary underline" href={`/loans/${encodeURIComponent(item.loanPayment.loanId)}?payment=${id}`}>대출 상세·납입 수정 →</Link><p>상환 예정일 {item.loanPayment.dueDate ?? "미확인"} · 실제 출금일 {item.paymentDate}</p></div> : null}
         {hasLoanPrincipal(item) ? <p className="rounded-xl bg-secondary/50 p-4 text-sm leading-6">대출 원금은 소비에서 제외하고 실제 결제액은 원장에 반영해요. 이자는 대출 이외의 카테고리로 기록해 주세요.</p> : null}
         <ExpenseReceipt expense={item} />
         <section className="expense-payment" aria-label="결제와 이용 정보">

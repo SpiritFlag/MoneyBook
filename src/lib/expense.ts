@@ -131,8 +131,14 @@ export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => 
   if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "명세 행 ID가 중복되었어요.", path: ["items"] });
 });
 
-export type Expense = ExpenseInput & { id: string; revision: number; createdAt: string; updatedAt: string };
-export const expenseSchema = expenseInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
+const loanPaymentSchema = z.object({
+  loanId: z.string().min(1).max(120), scheduleKey: z.string().min(1).max(120),
+  dueDate: dateSchema.nullable(), installment: z.number().int().positive().nullable(),
+  principal: z.number().int().min(0).max(999_999_999_999),
+  interest: z.number().int().min(0).max(999_999_999_999), fee: z.number().int().min(0).max(999_999_999_999),
+});
+export type Expense = ExpenseInput & { id: string; revision: number; createdAt: string; updatedAt: string; loanPayment?: z.infer<typeof loanPaymentSchema> };
+export const expenseSchema = expenseInputSchema.safeExtend({ id: z.string().min(1).max(80), revision: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string(), loanPayment: loanPaymentSchema.optional() });
 export function newExpense(date: string): ExpenseInput {
   return { title: "", category: "food", currency: "KRW", paidAmount: "", paymentMethod: "", assetId: null, topup: null, paymentKind: "card", paymentDate: date, time: null, useKind: "once", useDate: date, useDateFollowsPayment: true, useTime: null, sortOrder: 0, orderReference: null, orderSide: "after", valuationRate: null, valuationSource: null, useEnd: null, allocation: "start", shared: false, ownAmount: null, krwAmount: null, receiptCurrency: "KRW", receiptTotal: null, items: [], adjustments: [], memo: "" };
 }
