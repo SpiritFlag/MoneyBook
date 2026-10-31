@@ -31,6 +31,12 @@ async function main() {
     assert.equal(records[0].loanPayment?.dueDate, "2026-10-25");
     assert.equal(records[0].paymentDate, "2026-10-27");
     assert.equal((await second.listLoans())[0].repayments.length, 2);
+    const month = await second.listMonthlyLoanPayments("2026-10");
+    assert.equal(month.rows.length, 1);
+    assert.equal(month.rows[0].payment?.date, "2026-10-27");
+    assert.equal(month.rows[0].existing?.id, records[0].id);
+    assert.equal(month.totals.paidCount, 1);
+    assert.equal((await createNeonRepository(other, connection).listMonthlyLoanPayments("2026-10")).rows.length, 0);
     const raw = await sql`SELECT payload FROM moneybook.books WHERE owner_id = ${owner}`;
     assert.deepEqual(raw[0].payload.loans, [exampleLoan], "Imported lender notes must remain unchanged");
     const changed = await second.saveLoanPayment({ ...payment, date: "2026-10-28", interest: 60000 }, records[0].id, 1);

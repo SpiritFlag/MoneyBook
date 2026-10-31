@@ -13,6 +13,7 @@ import { seedExpenses } from "./seed-expenses";
 import { loanSampleSchema, loanBatchSchema, type LoanSample } from "./loan";
 import { trashEntrySchema, retainedTrash, type TrashEntry } from "./trash";
 import { loanPaymentInputSchema, loanPaymentExpense, loanScheduleKey, loanScheduleBasis, loansWithPayments, validateLoanPayments, type LoanPaymentInput } from "./loan-payment";
+import { monthlyLoanPayments } from "./monthly-loan-payments";
 
 export class RepositoryError extends Error {
   constructor(message: string, public status: number) { super(message); this.name = "RepositoryError"; }
@@ -295,6 +296,10 @@ export function createBookRepository(storage: BookStorage) {
       return { restored: id };
     });
   }
+  async function listMonthlyLoanPayments(month: string) {
+    const book = await read();
+    return monthlyLoanPayments(book.loans, book.expenses, month);
+  }
   async function saveLoanPayment(input: LoanPaymentInput, id: string, revision: number | null) {
     return enqueue(async (book, persist) => {
       const value = loanPaymentInputSchema.parse(input);
@@ -335,7 +340,7 @@ export function createBookRepository(storage: BookStorage) {
       return { added, total: book.loans.length };
     });
   }
-  return { saveLoanPayment, listTrash: async () => retainedTrash((await read()).trash ?? []), moveToTrash, restoreTrash, listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => { const book = await read(); return loansWithPayments(book.loans, book.expenses); }, importLoans, save, saveAsset, saveOperation };
+  return { listMonthlyLoanPayments, saveLoanPayment, listTrash: async () => retainedTrash((await read()).trash ?? []), moveToTrash, restoreTrash, listGameCurrencies: async () => (await read()).gameCurrencies, saveGameCurrency, listCards: async () => (await read()).cards, saveCard, list: async () => (await read()).expenses, listAssets: async () => (await read()).assets, listOperations: async () => (await read()).operations, listLoans: async () => { const book = await read(); return loansWithPayments(book.loans, book.expenses); }, importLoans, save, saveAsset, saveOperation };
 }
 
 // HMR 때 검증·저장 함수는 새로 만들고 쓰기 큐만 공유합니다.
