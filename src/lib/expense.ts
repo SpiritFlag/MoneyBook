@@ -71,6 +71,9 @@ const baseExpenseSchema = z.object({
   paymentDate: dateSchema,
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "시각을 확인해 주세요.").nullable(),
   useKind: z.enum(["once", "period"]),
+  monthlyRecurring: z.boolean().optional(),
+  recurringSeriesId: z.string().min(1).max(80).optional(),
+  recurringSourceId: z.string().min(1).max(80).optional(),
   useDate: dateSchema,
   useDateFollowsPayment: z.boolean().optional(),
   useTimeFollowsPayment: z.boolean().optional(),
@@ -97,6 +100,7 @@ const baseExpenseSchema = z.object({
 });
 export type ExpenseInput = z.infer<typeof baseExpenseSchema>;
 export const expenseInputSchema = baseExpenseSchema.superRefine((value, ctx) => {
+  if (value.monthlyRecurring && value.useKind !== "period") ctx.addIssue({ code: "custom", message: "매월 반복은 기간형 이용에서 선택해 주세요.", path: ["monthlyRecurring"] });
   function check(amount: string | null, currency: Currency, path: (string | number)[]) {
     if (amount !== null && toMinor(amount, currency) === null) ctx.addIssue({ code: "custom", message: `${currencyInfo(currency).unit} 금액의 소수 자릿수 또는 범위를 확인해 주세요.`, path });
   }
