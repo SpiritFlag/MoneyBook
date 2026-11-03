@@ -84,7 +84,7 @@ const baseExpenseSchema = z.object({
   valuationSource: z.string().max(160).nullable().default(null),
   useTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "이용 시각을 확인해 주세요.").nullable().default(null),
   useEnd: dateSchema.nullable(),
-  allocation: z.enum(["start", "annual"]),
+  allocation: z.enum(["start", "annual", "period-months"]),
   shared: z.boolean(),
   ownAmount: moneySchema.nullable(),
   krwAmount: moneySchema.nullable(),
@@ -275,9 +275,11 @@ export function monthAmount(value: ExpenseInput, month: string): number | null |
   const [year, m] = month.split("-").map(Number);
   const [sy, sm] = start.split("-").map(Number);
   const offset = (year - sy) * 12 + m - sm;
-  if (offset < 0 || offset > 11) return undefined;
+  const [ey, em] = (value.useEnd ?? value.useDate).slice(0, 7).split("-").map(Number);
+  const months = value.allocation === "annual" ? 12 : Math.max(1, (ey - sy) * 12 + em - sm + 1);
+  if (offset < 0 || offset >= months) return undefined;
   const amount = consumptionKrw(value);
-  return amount === null ? null : Math.floor(amount / 12) + (offset === 0 ? amount % 12 : 0);
+  return amount === null ? null : Math.trunc(amount / months) + (offset === 0 ? amount % months : 0);
 }
 
 export function followsPaymentDate(value: ExpenseInput): boolean {
