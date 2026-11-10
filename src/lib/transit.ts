@@ -1,3 +1,4 @@
+import { isRailGroup } from "./transit-options";
 import { z } from "zod";
 import { toMinor } from "./expense";
 
@@ -19,7 +20,7 @@ export function newTransitLeg(id: string): TransitLeg {
   return { id, vehicle: newTransitVehicle(), board: newTransitTap(), alight: newTransitTap(), transfers: [] };
 }
 export function transitRoute(vehicle: TransitVehicle) {
-  return vehicle.group === "수도권 전철" ? vehicle.route : `${vehicle.group} · ${vehicle.route} ${vehicle.number}${vehicle.municipality ? ` · ${vehicle.municipality}` : ""}`;
+  return isRailGroup(vehicle.group) ? (vehicle.group === "수도권 전철" ? vehicle.route : `${vehicle.group} · ${vehicle.route}`) : `${vehicle.group} · ${vehicle.route} ${vehicle.number}${vehicle.municipality ? ` · ${vehicle.municipality}` : ""}`;
 }
 export function transitFare(tap: TransitTap) {
   const value = (s: string) => toMinor(s || "0", "KRW") ?? 0;
@@ -65,13 +66,13 @@ export function validateTransitLegs(legs: readonly TransitLeg[]) {
     const vehicles = [leg.vehicle, ...leg.transfers.map(t => t.vehicle)];
     for (const v of vehicles) {
       if (!v.group.trim() || !v.route.trim()) throw new Error("교통수단과 노선을 선택해 주세요.");
-      if (v.group !== "수도권 전철" && !v.number.trim()) throw new Error("버스 노선번호를 입력해 주세요.");
+      if (!isRailGroup(v.group) && !v.number.trim()) throw new Error("버스 노선번호를 입력해 주세요.");
       if (v.group === "경기 버스" && !v.municipality.trim()) throw new Error("경기 버스 소속 시·군을 입력해 주세요.");
     }
-    if (leg.transfers.length && leg.vehicle.group !== "수도권 전철") throw new Error("전철 내부 환승은 전철 구간에만 추가할 수 있어요.");
+    if (leg.transfers.length && !isRailGroup(leg.vehicle.group)) throw new Error("전철 내부 환승은 전철 구간에만 추가할 수 있어요.");
     for (const transfer of leg.transfers) {
       unique(transfer.id);
-      if (transfer.vehicle.group !== "수도권 전철") throw new Error("내부 환승의 다음 노선은 전철이어야 해요.");
+      if (!isRailGroup(transfer.vehicle.group)) throw new Error("내부 환승의 다음 노선은 전철이어야 해요.");
       if (!transfer.tap.place.trim()) throw new Error("환승역을 입력해 주세요.");
     }
   }

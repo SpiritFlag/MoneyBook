@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { TransitJourney } from "./transit-journey";
 import { normalizeTransitOperation, type OperationInput } from "@/lib/operations";
 import { newTransitLeg, newTransitTap, newTransitVehicle, normalizeTransitTime, type TransitTap, type TransitVehicle, type TransitLeg } from "@/lib/transit";
-import { transportOptions } from "@/lib/transit-options";
+import { isRailGroup, transportOptions } from "@/lib/transit-options";
 import { transitAssets } from "@/lib/transit-assets";
 import type { EditorProps } from "./operation-editors";
 
@@ -19,9 +19,9 @@ export function TransitTime({ label, value, change }: { label: string; value: st
 }
 function Vehicle({ value, change, label, railOnly = false }: { value: TransitVehicle; change: (value: TransitVehicle) => void; label: string; railOnly?: boolean }) {
   return <fieldset className="min-w-0 rounded-xl bg-secondary/30 p-4"><legend className="px-1 text-sm font-medium">{label}</legend><div className="grid gap-4 sm:grid-cols-2">
-    <Field label={`${label} 교통수단`}><select className="form-control" value={value.group} onChange={e => change({ ...value, group: e.target.value, route: transportOptions[e.target.value][0].name })}>{Object.keys(transportOptions).filter(g => !railOnly || g === "수도권 전철").map(g => <option key={g}>{g}</option>)}</select></Field>
+    <Field label={`${label} 교통수단`}><select className="form-control" value={value.group} onChange={e => change({ ...value, group: e.target.value, route: transportOptions[e.target.value][0].name })}>{Object.keys(transportOptions).filter(g => !railOnly || isRailGroup(g)).map(g => <option key={g}>{g}</option>)}</select></Field>
     <Field label={`${label} 노선·버스 종류`}><select className="form-control" value={value.route} onChange={e => change({ ...value, route: e.target.value })}>{transportOptions[value.group]?.map(o => <option key={o.name}>{o.name}</option>)}</select></Field>
-    {value.group !== "수도권 전철" ? <Text label={`${label} 버스 번호`} value={value.number} change={number => change({ ...value, number })} placeholder="예: 143, 602-1B" /> : null}
+    {!isRailGroup(value.group) ? <Text label={`${label} 버스 번호`} value={value.number} change={number => change({ ...value, number })} placeholder="예: 143, 602-1B" /> : null}
     {value.group === "경기 버스" ? <Text label={`${label} 소속 시·군`} value={value.municipality} change={municipality => change({ ...value, municipality })} placeholder="예: 용인, 성남" /> : null}
   </div></fieldset>;
 }
@@ -61,7 +61,7 @@ export function TransitEditor({ value, change, book }: EditorProps) {
             <Vehicle label={`${name} 다음 노선`} value={transfer.vehicle} railOnly change={vehicle => patch({ vehicle })} />
           </section>;
         })}
-        {leg.vehicle.group === "수도권 전철" ? <Button type="button" variant="secondary" size="sm" disabled={leg.transfers.length >= 10} onClick={() => update(index, { ...leg, transfers: [...leg.transfers, { id: crypto.randomUUID(), tap: newTransitTap(), vehicle: newTransitVehicle(), gatePassed: false }] })}>전철 내부 환승 추가</Button> : null}
+        {isRailGroup(leg.vehicle.group) ? <Button type="button" variant="secondary" size="sm" disabled={leg.transfers.length >= 10} onClick={() => update(index, { ...leg, transfers: [...leg.transfers, { id: crypto.randomUUID(), tap: newTransitTap(), vehicle: { ...newTransitVehicle(), group: leg.vehicle.group, route: transportOptions[leg.vehicle.group][0].name }, gatePassed: false }] })}>전철 내부 환승 추가</Button> : null}
         <Tap label={`${label} 하차`} value={leg.alight} suggestedCause={(leg.transfers.at(-1)?.vehicle ?? leg.vehicle).route === "신분당선" ? "신분당선" : ""} change={alight => update(index, { ...leg, alight })} />
       </section>;
     })}
