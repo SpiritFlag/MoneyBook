@@ -22,6 +22,7 @@ export function AssetOverview({ today }: { today: string }) {
   const assets = useAssets();
   const expenses = useExpenses(); const operations = useOperations();
   const [date, setDate] = useState(today);
+  const [editingOrder, setEditingOrder] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [orderStatus, setOrderStatus] = useState("");
@@ -31,19 +32,37 @@ export function AssetOverview({ today }: { today: string }) {
   const positions = (assets.data ?? []).map((asset) => ({ asset, position: assetPosition(asset, expenses.data ?? [], date, postings) }));
   const ready = !!assets.data && !!expenses.data && !!operations.data;
   const total = positions.reduce((sum, { position }) => sum + (position.won ?? 0), 0);
-  const unknown = positions.filter(({ position }) => position.won === null).length;
+  const excluded = positions.filter(({ position }) => position.won === null).map(({ asset, position }) => {
+    let reason = "원화 평가 미확정";
+    if (!position.effective) reason = "잔액 기준일 이전";
+    else if (position.balance === null) reason = "잔액 미확인";
+    return { asset, reason };
+  });
+  const hasTotal = positions.length === 0 || excluded.length < positions.length;
   const error = assets.error ?? expenses.error ?? operations.error;
   return <>
     <header className="mb-7 flex items-start justify-between gap-4"><div><p className="mb-2 text-xs font-semibold tracking-widest text-primary">내 돈이 머무는 곳</p><h1 className="text-3xl font-bold">자산 현황</h1><p className="mt-3 text-sm text-muted-foreground">원래 단위의 잔액과 원화 가치를 함께 확인하세요.</p></div><Button asChild><Link href="/assets/new"><Plus size={16} />자산 추가</Link></Button></header>
-    <section className="daily-summary book-sheet mb-6 rounded-3xl p-6 sm:p-8"><div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-xs text-muted-foreground">등록 자산의 원화 평가 합계</p><p className="mt-3 text-4xl font-bold text-primary tabular-nums">{ready && !error ? formatMinor(total, "KRW") : "—"}</p>{unknown > 0 && ready ? <p className="mt-3 text-sm text-amber-800">잔액·평가 미확정 {unknown}개 자산은 합계에서 제외</p> : null}</div><label className="grid gap-2 text-xs text-muted-foreground">잔액 조회일<input type="date" className="form-control" min="1900-01-01" max="9999-12-31" value={date} onChange={(e) => { if (parseDateQuery(e.target.value)) setDate(e.target.value); }} /></label></div><p className="mt-5 text-xs leading-6 text-muted-foreground">조회일까지 기록한 잔액에 각 자산의 현재 입력 환율을 적용해요. 과거 환율 조회나 전체 순자산(부채 포함) 합계는 아니에요.</p></section>
+    <section className="daily-summary book-sheet mb-6 rounded-3xl p-6 sm:p-8"><div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-xs text-muted-foreground">등록 자산의 원화 평가 합계</p><p className="mt-3 text-4xl font-bold text-primary tabular-nums">{ready && !error && hasTotal ? formatMinor(total, "KRW") : "—"}</p>{ready && !error && excluded.length > 0 && (
+      <div className="mt-3 text-sm text-amber-800">
+        {excluded.length === 1 ? <p>{excluded[0].asset.name} · {excluded[0].reason} (합계에서 제외)</p> :
+          <details><summary className="cursor-pointer">합계에서 제외된 자산 {excluded.length}개</summary>
+            <ul className="mt-2 space-y-1">{excluded.map(({ asset, reason }) => <li key={asset.id}>{asset.name} · {reason}</li>)}</ul>
+          </details>}
+      </div>
+    )}</div><label className="grid gap-2 text-xs text-muted-foreground">잔액 조회일<input type="date" className="form-control" min="1900-01-01" max="9999-12-31" value={date} onChange={(e) => { if (parseDateQuery(e.target.value)) setDate(e.target.value); }} /></label></div><p className="mt-5 text-xs leading-6 text-muted-foreground">조회일까지 기록한 잔액에 각 자산의 현재 입력 환율을 적용해요. 과거 환율 조회나 전체 순자산(부채 포함) 합계는 아니에요.</p></section>
     {!ready || error ? <LedgerState error={error} retry={() => { void assets.mutate(); void expenses.mutate(); void operations.mutate(); }} /> : positions.length ? <section aria-label="자산 목록">
-      <p className="mb-3 text-xs text-muted-foreground">왼쪽 손잡이를 끌어 순서를 바꿔보세요. 지출·이체·납입의 자산 선택 순서에도 함께 적용돼요.</p>
+      {positions.length > 1 && <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
+        {editingOrder && <p className="mr-auto text-xs text-muted-foreground">손잡이로 옮기면 입력 화면의 자산 순서에도 바로 저장돼요.</p>}
+        <Button type="button" size="sm" variant="outline" disabled={savingOrder} aria-expanded={editingOrder} onClick={() => setEditingOrder(!editingOrder)}>
+          {editingOrder ? "편집 닫기" : "순서 편집"}
+        </Button>
+      </div>}
       {orderError ? <p role="alert" className="mb-3 rounded-xl bg-red-50 p-4 text-sm text-red-700">{orderError}</p> : null}
       <p role="status" aria-live="polite" className="mb-2 text-xs text-primary">{savingOrder ? "자산 순서를 저장하고 있어요…" : orderStatus}</p>
       <DragDropProvider onDragStart={() => { draggedAssets.current = assets.data ?? []; }} onDragEnd={async event => {
         const original = draggedAssets.current ?? assets.data ?? [];
         draggedAssets.current = null;
-        if (event.canceled || orderBusy.current) return;
+        if (!editingOrder || event.canceled || orderBusy.current) return;
         const reordered = move(original, event);
         if (reordered.every((asset, index) => asset.id === original[index]?.id)) return;
         orderBusy.current = true; setSavingOrder(true); setOrderError(""); setOrderStatus("");
@@ -55,7 +74,7 @@ export function AssetOverview({ today }: { today: string }) {
           await assets.mutate().catch(() => undefined);
         } finally { orderBusy.current = false; setSavingOrder(false); }
       }}>
-        <ul className="space-y-2">{positions.map(({ asset, position }, index) => <SortableAssetRow key={asset.id} asset={asset} position={position} index={index} disabled={savingOrder || positions.length < 2} />)}</ul>
+        <ul className="space-y-2">{positions.map(({ asset, position }, index) => <SortableAssetRow key={asset.id} asset={asset} position={position} index={index} editingOrder={editingOrder && positions.length > 1} savingOrder={savingOrder} />)}</ul>
       </DragDropProvider>
     </section> : <div className="book-sheet rounded-3xl bg-card px-6 py-16 text-center"><Wallet className="mx-auto mb-4 text-primary" size={32} /><h2 className="text-lg font-semibold">첫 자산을 등록해 보세요</h2><p className="mt-3 text-sm text-muted-foreground">계좌, 현금, 외화 지갑, 게임 재화를 같은 방식으로 관리해요.</p><Button asChild className="mt-6"><Link href="/assets/new">자산 추가하기</Link></Button></div>}
     <GameCurrencies />
