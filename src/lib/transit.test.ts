@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createBookRepository, storedSchema, type Book } from "./expense-repository";
 import { newAsset, assetPosition, assetLedger } from "./asset";
 import { newOperation, newRow, normalizeTransitOperation, operationPostings, operationExpenses, consumptionRecords, type OperationInput } from "./operations";
-import { newTransitLeg, newTransitTap, newTransitVehicle, normalizeTransitTime, transitTotals, validateTransitLegs, type TransitLeg } from "./transit";
+import { newTransitLeg, newTransitTap, newTransitVehicle, normalizeTransitTime, transitRoute, transitTotals, validateTransitLegs, type TransitLeg } from "./transit";
 import { bookTimeOrder } from "./date";
 import { newExpense, dailyExpenses, daySummary, monthAmount } from "./expense";
 
@@ -155,4 +155,27 @@ test("기존 사건형 교통 기록은 이름·노선·시각·차감액 그대
   assert.equal(saved.journey, undefined);
   await repo.saveOperation({ ...saved, memo: "메모 수정" }, saved.id, saved.revision);
   assert.deepEqual((await repo.listOperations())[0].rows, legacy.rows);
+});
+
+
+test("대구권 전철 내부 환승과 대구·경산 버스 번호를 검증하고 저장한다", async () => {
+  const leg = newTransitLeg("daegu");
+  leg.vehicle = { group: "대구권 전철", route: "1호선", number: "", municipality: "" };
+  leg.board = { ...newTransitTap(), place: "동대구역", base: "1500" };
+  leg.alight = { ...newTransitTap(), place: "구미" };
+  leg.transfers = [{ id: "daegyeong", vehicle: { ...leg.vehicle, route: "대경선" }, gatePassed: false, tap: { ...newTransitTap(), place: "대구역" } }];
+  validateTransitLegs([leg]);
+  assert.equal(transitRoute(leg.vehicle), "대구권 전철 · 1호선");
+  assert.equal(transitRoute(newTransitVehicle()), "2호선");
+  const { repo, read } = fixture();
+  await repo.saveAsset({ ...newAsset(date), name: "교통카드", kind: "transport", openingBalance: "10000" }, "card", null);
+  await repo.saveOperation({ ...newOperation("transit", date), title: "대구 이동", assetId: "card", journey: [leg] }, "daegu", null);
+  assert.deepEqual(read().operations[0].journey, [leg]);
+  for (const group of ["대구 버스", "경산 버스"]) {
+    const bus = { ...leg, transfers: [], vehicle: { group, route: "간선버스", number: "", municipality: "" } };
+    assert.throws(() => validateTransitLegs([bus]), /버스 노선번호/);
+    bus.vehicle.number = "123";
+    validateTransitLegs([bus]);
+    assert.equal(transitRoute(bus.vehicle), group + " · 간선버스 123");
+  }
 });

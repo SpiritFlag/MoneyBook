@@ -1,6 +1,9 @@
 // 이전 교통 입력의 노선·수단 표시 옵션을 유지한다. 실시간 검색이나 운임 자동 계산표가 아니다.
 export type TransportOption = { name: string; color: string; special?: boolean };
 const options = (rows: [string, string][]): TransportOption[] => rows.map(([name, color]) => ({ name, color }));
+export function isRailGroup(group: string) {
+  return group === "수도권 전철" || group === "대구권 전철";
+}
 export const transportOptions: Record<string, TransportOption[]> = {
   "수도권 전철": options([
     ["1호선", "#0052A4"], ["2호선", "#00A84D"], ["3호선", "#EF7C1C"], ["4호선", "#00A4E3"],
@@ -14,4 +17,7 @@ export const transportOptions: Record<string, TransportOption[]> = {
   "서울 버스": options([["공항버스", "#8B4513"], ["광역버스", "#F72F08"], ["간선버스", "#3D5BAB"], ["지선버스", "#5BB025"], ["마을버스", "#5BB025"], ["순환버스", "#F99D1C"], ["심야버스", "#3D5BAB"]]),
   "경기 버스": options([["일반버스", "#009775"], ["좌석버스", "#0085CA"], ["직행좌석버스", "#EE2737"], ["경기순환버스", "#EE2737"], ["마을버스", "#F2A900"], ["맞춤형버스", "#B62367"], ["공항버스", "#8B4513"], ["시외버스", "#A800FF"]]),
   "인천 버스": options([["광역버스", "#FF0000"], ["시외좌석버스", "#FF0000"], ["급행간선버스", "#5112AB"], ["간선버스", "#3366CC"], ["시내좌석버스", "#3366CC"], ["지선버스", "#5BB025"], ["마을버스", "#5BB025"], ["공영버스", "#0057C2"]]),
+  "대구권 전철": options([["1호선", "#D93F5C"], ["2호선", "#00AA80"], ["3호선", "#FFB100"], ["대경선", "#0054A6"]]),
+  "대구 버스": options([["급행버스", "#D82026"], ["순환버스", "#00AC59"], ["간선버스", "#01B3ED"], ["지선버스", "#F6AF30"], ["출근맞춤버스", "#82D438"]]),
+  "경산 버스": options([["간선버스", "#0075C8"], ["순환버스", "#F72F08"], ["지선버스", "#00869A"]]),
 };
