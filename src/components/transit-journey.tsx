@@ -1,20 +1,60 @@
+import { Fragment, type CSSProperties } from "react";
 import { formatMinor } from "@/lib/expense";
-import { transitEvents, transitFare, transitRoute, transitTotals, type TransitLeg } from "@/lib/transit";
+import { transitFare, transitRoute, transitTotals, type TransitLeg, type TransitTap, type TransitVehicle } from "@/lib/transit";
 import { transportOptions } from "@/lib/transit-options";
+import styles from "./transit-journey.module.css";
+
+function routeStyle(vehicle: TransitVehicle): CSSProperties {
+  return { "--route-color": transportOptions[vehicle.group]?.find(option => option.name === vehicle.route)?.color ?? "#537761" } as CSSProperties;
+}
+
+function JourneyStop({ tap, label, charged = true, first = false, last = false, connects = false }: {
+  tap: TransitTap; label: string; charged?: boolean; first?: boolean; last?: boolean; connects?: boolean;
+}) {
+  const fare = transitFare(tap);
+  return <div className={`${styles.stop} ${first ? styles.first : ""} ${last ? styles.last : ""} ${connects ? styles.connects : ""}`}>
+    {charged ? <time className={styles.time}>{tap.time ?? "시각 미확인"}</time> : <span className={styles.time}>—</span>}
+    <i aria-hidden="true" className={styles.dot} />
+    <div className={styles.stopContent}>
+      <div className={styles.stopLine}><strong>{tap.place || "장소 미입력"}</strong>{charged ? <b>{formatMinor(fare.total, "KRW")}</b> : null}</div>
+      <p className={styles.action}>{label}</p>
+      {charged ? <ul className={styles.branches}>
+        <li><span>기본운임</span><span>{formatMinor(fare.base, "KRW")}</span></li>
+        <li><span>거리초과운임</span><span>{formatMinor(fare.distance, "KRW")}</span></li>
+        <li><span>특별요금{fare.special ? ` · ${tap.cause || "원인 미입력"}` : ""}</span><span>{formatMinor(fare.special, "KRW")}</span></li>
+      </ul> : null}
+    </div>
+  </div>;
+}
+
+function JourneyRoute({ vehicle }: { vehicle: TransitVehicle }) {
+  return <div className={styles.route} style={routeStyle(vehicle)}><span>{transitRoute(vehicle) || "노선 미입력"}</span></div>;
+}
 
 export function TransitJourney({ legs }: { legs: readonly TransitLeg[] }) {
   const totals = transitTotals(legs);
-  return <section className="min-w-0 space-y-4" aria-label="교통 여정 미리보기">
-    <h3 className="font-semibold">여정 · 운임 미리보기</h3>
-    <ol className="space-y-4">{legs.map((leg, i) => <li key={leg.id} className="min-w-0 rounded-2xl bg-background/70 p-4">
-      <p className="text-sm font-semibold">{i + 1}. {leg.board.place || "승차 장소"} → {leg.alight.place || "하차 장소"}</p>
-      <div className="mt-3 flex flex-wrap gap-2">{[leg.vehicle, ...leg.transfers.map(t => t.vehicle)].map((v, vi) => <span key={vi} className="inline-flex max-w-full items-center gap-2 rounded-lg bg-card px-3 py-2 text-xs"><i aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: transportOptions[v.group]?.find(o => o.name === v.route)?.color ?? "#537761" }} /><span className="break-words">{transitRoute(v)}</span></span>)}</div>
-      {leg.transfers.map(t => <p key={t.id} className="mt-2 break-words text-xs text-muted-foreground">↳ {t.tap.place || "환승역"} · {t.gatePassed ? "환승게이트 통과" : "게이트 없는 내부 환승 · 차감 없음"}</p>)}
-      <ol className="mt-4 space-y-3 border-l-2 border-primary/20 pl-4">{transitEvents([leg]).map(event => {
-        const fare = transitFare(event.tap);
-        return <li key={event.id} className="text-sm"><div className="flex flex-wrap justify-between gap-2"><span>{event.action === "board" ? "승차" : event.action === "alight" ? "하차" : "환승게이트"} · {event.tap.place || "장소 미입력"} · {event.tap.time ?? "시각 미확인"}</span><strong>{formatMinor(fare.total, "KRW")}</strong></div><p className="mt-1 text-xs text-muted-foreground">기본 {formatMinor(fare.base, "KRW")} · 거리초과 {formatMinor(fare.distance, "KRW")} · 특별 {formatMinor(fare.special, "KRW")}{fare.special ? ` (${event.tap.cause || "원인 미입력"})` : ""}</p></li>;
-      })}</ol>
-    </li>)}</ol>
-    <dl className="space-y-2 rounded-xl bg-secondary/50 p-4 text-sm">{([ ["기본운임", totals.base], ["거리초과운임", totals.distance], ["특별요금", totals.special], ...totals.causes.map(c => [`↳ ${c.name}`, c.amount] as const), ["교통비 합계", totals.total] ] as const).map(([name, value]) => <div key={name} className="flex justify-between gap-3"><dt>{name}</dt><dd className="font-semibold tabular-nums">{formatMinor(value as number, "KRW")}</dd></div>)}</dl>
+  return <section className="min-w-0 space-y-6" aria-label="교통 여정 미리보기">
+    <h3 className="font-semibold">이동 경로 · 운임</h3>
+    <ol className={styles.journey} aria-label="이동 경로">{legs.map((leg, index) => {
+      const lastVehicle = leg.transfers.at(-1)?.vehicle ?? leg.vehicle;
+      return <li key={leg.id}>
+        {index > 0 ? <div className={styles.transfer}>환승 · 다음 교통수단</div> : null}
+        <div style={routeStyle(leg.vehicle)}>
+          <JourneyStop tap={leg.board} label="승차" first={index === 0} />
+          <JourneyRoute vehicle={leg.vehicle} />
+          {leg.transfers.map(transfer => <Fragment key={transfer.id}>
+            <div style={routeStyle(transfer.vehicle)}>
+              <JourneyStop tap={transfer.tap} label={transfer.gatePassed ? "전철 환승 · 환승게이트 통과" : "전철 내부 환승 · 게이트 통과 없음 · 차감 없음"} charged={transfer.gatePassed} />
+            </div>
+            <JourneyRoute vehicle={transfer.vehicle} />
+          </Fragment>)}
+          <div style={routeStyle(lastVehicle)}><JourneyStop tap={leg.alight} label="하차" last connects={index < legs.length - 1} /></div>
+        </div>
+      </li>;
+    })}</ol>
+    <dl className="space-y-2 rounded-xl bg-secondary/50 p-4 text-sm">{([
+      ["기본운임", totals.base], ["거리초과운임", totals.distance], ["특별요금", totals.special],
+      ...totals.causes.map(cause => [`↳ ${cause.name}`, cause.amount] as const), ["교통비 합계", totals.total],
+    ] as const).map(([name, value]) => <div key={name} className="flex justify-between gap-3"><dt>{name}</dt><dd className="font-semibold tabular-nums">{formatMinor(value as number, "KRW")}</dd></div>)}</dl>
   </section>;
 }
