@@ -177,7 +177,7 @@ function financialSummary(book: Book, r: Range) {
     return { id: asset.id, name: asset.name, currency: asset.currency, netMinor: rows.reduce((s, row) => s + row.amount, 0), byReason, linkedLoanRepayments };
   });
   const incomeByCurrency: Record<string, number> = {};
-  for (const o of book.operations.filter(o => o.kind === "income" && inRange(o.date, r))) incomeByCurrency[o.currency] = (incomeByCurrency[o.currency] ?? 0) + incomeMinor(o);
+  for (const o of book.operations.filter(o => (o.kind === "income" || incomeMinor(o) > 0) && inRange(o.date, r))) incomeByCurrency[o.currency] = (incomeByCurrency[o.currency] ?? 0) + incomeMinor(o);
   return { range: r, dateBasis: "actual calendar payment dates (not 05:00 book dates)", incomeByCurrencyMinor: incomeByCurrency, assets, note: "asset flows are not consumption; transfers have two legs, never sum gross outflows as spending; loan history is not posted again" };
 }
 

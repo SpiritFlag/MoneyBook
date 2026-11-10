@@ -7,6 +7,8 @@ import { useBook } from "@/lib/use-operations";
 import {
   operationLabels,
   incomeCategories,
+  incomeOperations,
+  incomeMinor,
   transferDiscounts,
   transferDiscountTotal,
   transferOrderWarning,
@@ -19,6 +21,7 @@ import {
 } from "@/lib/operations";
 
 import { assetLedger, signedMinor } from "@/lib/asset";
+import { toMinor } from "@/lib/expense";
 import { CardList } from "./card-list";
 import { TrashButton } from "./trash-button";
 import { OperationForm } from "./operation-form";
@@ -77,7 +80,7 @@ export function FinanceBook({
   const { data: book, error, retry } = useBook();
   const config = sections[section];
   if (!book || error) return <LedgerState error={error} retry={retry} />;
-  const records = book.operations
+  const records = (section === "income" ? incomeOperations(book.operations) : book.operations)
     .filter((o) => (config.kinds as readonly string[]).includes(o.kind))
     .sort(
       (a, b) =>
@@ -363,6 +366,7 @@ export function RecordPage({
             </Button>
           ) : null}
           {op.kind === "income" ? <p className="text-sm text-primary">{incomeCategories[op.incomeCategory].label}{op.incomeCategory === "loan" ? " · 수입 제외 · 자산 원장에만 입금 반영" : ""}</p> : null}
+          {op.kind === "recovery" && op.recoverySurplusAsIncome ? <section className="rounded-xl bg-secondary/50 p-4 text-sm"><h2 className="font-semibold">회수와 기타 수입</h2><p className="mt-2">실제 수령 {formatMoney(op.amount, op.currency)} · 분담금 회수 {formatMinor((toMinor(op.amount, op.currency) ?? 0) - incomeMinor(op), op.currency)} · 기타 수입 {formatMinor(incomeMinor(op), op.currency)}</p><p className="mt-2 text-xs text-muted-foreground">잔돈은 됐다고 받은 차액이에요. 입금은 실제 수령액 한 번만 반영하고, 이 기록에서 함께 수정·삭제해요.</p></section> : null}
           {op.kind === "transit" && op.journey !== undefined ? <TransitJourney legs={op.journey} /> : null}
           {op.kind === "transit" && op.transitPaymentDate ? <p className="text-sm text-muted-foreground">결제일 {op.transitPaymentDate} · 교통 소비는 이용일 {op.date}에 반영</p> : null}
           {op.kind === "transit" && op.transitFunding ? <section className="rounded-xl bg-secondary/50 p-4 text-sm"><h2 className="font-semibold">교통카드 자동 충전 · 자산 이동</h2><p className="mt-2">{book.assets.find(a => a.id === op.transitFunding?.fromId)?.name} → {book.assets.find(a => a.id === op.assetId)?.name} · {formatMoney(op.transitFunding.amount, "KRW")}</p><p className="mt-2 text-xs text-muted-foreground">{op.transitFunding.date} · {op.transitFunding.time ?? "시각 미확인"} · 교통 소비에서 제외</p></section> : null}

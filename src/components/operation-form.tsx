@@ -185,7 +185,7 @@ export function OperationForm({
                     label={
                       kind === "statement"
                         ? "명세서 청구 총액 · 원"
-                        : "실제 총액"
+                        : kind === "recovery" ? "실제 수령액" : "실제 총액"
                     }
                     value={value.amount}
                     onChange={(amount) => change({ ...value, amount })}

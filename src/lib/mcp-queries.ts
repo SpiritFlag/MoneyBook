@@ -125,7 +125,7 @@ export function getRecord(book: Book, query: z.infer<typeof recordQuerySchema>) 
   }
   if (query.collection === "operations") {
     const record = found(book.operations.find(r => r.id === query.id));
-    return { record, ...(record.kind === "income" ? { incomeAmountMinor: incomeMinor(record) } : {}) };
+    return { record, ...(record.kind === "income" || record.kind === "recovery" ? { incomeAmountMinor: incomeMinor(record) } : {}) };
   }
   const record = found(book[query.collection].find(r => r.id === query.id));
   return { record };

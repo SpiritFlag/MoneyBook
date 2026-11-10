@@ -564,6 +564,11 @@ export function AllocationEditor({ value, change, book, id }: EditorProps) {
           value.currency,
         )}
       </p>
+      {!insurance ? <section className="space-y-3 rounded-xl bg-secondary/40 p-4 text-sm">
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={value.recoverySurplusAsIncome ?? false} onChange={event => change({ ...value, recoverySurplusAsIncome: event.target.checked })} /><span>잔돈은 됐다고 받은 차액을 기타 수입으로 기록</span></label>
+        <p className="text-xs leading-6 text-muted-foreground">상대가 더 준 금액을 받기로 한 경우에만 선택하세요. 분담금은 원래 귀속액만 정산하고, 실제 수령액은 입금 자산에 한 번만 반영해요.</p>
+        {value.recoverySurplusAsIncome ? <p aria-live="polite">분담금 회수 {formatMinor(sum, value.currency)} · 기타 수입 {formatMinor(Math.max(0, (toMinor(value.amount, value.currency) ?? 0) - sum), value.currency)} · 실제 수령 {formatMinor(toMinor(value.amount, value.currency) ?? 0, value.currency)}</p> : null}
+      </section> : null}
     </div>
   );
 }

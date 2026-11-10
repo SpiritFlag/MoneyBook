@@ -1,9 +1,9 @@
 import { bookDate, bookTimeOrder, parseDateQuery } from "./date";
 import { dailyExpenses, dayTime, orderAroundReferences, type Expense, type ExpenseInput } from "./expense";
-import { operationExpenses, incomeMinor, type Operation, type OperationRow, type BookData } from "./operations";
+import { operationExpenses, incomeMinor, incomeOperations, type Operation, type OperationRow, type BookData } from "./operations";
 export type DailyRecord = { id: string; expense: Expense; income?: never; transfer?: never } | { id: string; income: Operation; incomeAmountMinor: number; expense?: never; transfer?: never } | { id: string; transfer: { operation: Operation; row: OperationRow; index: number }; expense?: never; income?: never };
 export function dailyIncomes(operations: readonly Operation[], date: string) {
-  return operations.filter(o => o.kind === "income" && bookDate(o.date, o.time) === date);
+  return incomeOperations(operations).filter(o => bookDate(o.date, o.time) === date);
 }
 export function dailyRecords(expenses: readonly Expense[], operations: readonly Operation[], date: string, includeReferenceRows = false): DailyRecord[] {
   const transfers: DailyRecord[] = operations.filter(o => o.kind === "transfer").flatMap(operation => operation.rows.flatMap((row, index) => bookDate(row.date, row.time) === date ? [{ id: `transfer:${operation.id}/${row.id}`, transfer: { operation, row, index } }] : []));

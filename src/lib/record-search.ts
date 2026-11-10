@@ -41,7 +41,7 @@ export function searchBookRecords(book: BookData, query: RecordSearchQuery): Rec
       ...(operation.template ? [operation.template.paymentMethod, ...operation.template.items.map(item => item.name)] : [])].filter(Boolean);
     const label = operationLabels[operation.kind];
     if (!inRange(dates) || !matches([operation.title, operation.memo, label,
-      operation.kind === "income" ? incomeCategories[operation.incomeCategory].label : "", ...details])) continue;
+      operation.kind === "income" ? incomeCategories[operation.incomeCategory].label : operation.kind === "recovery" && operation.recoverySurplusAsIncome ? "정산 차액 기타 수입" : "", ...details])) continue;
     rows.push({ id: `operation:${operation.id}`, href: `/records/${encodeURIComponent(operation.id)}`, title: operation.title,
       label, date: operation.date, amount: operation.amount, currency: operation.currency, context: details.join(" · "), memo: operation.memo });
   }

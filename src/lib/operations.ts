@@ -1,4 +1,4 @@
-import { currencySchema, type GameCurrency } from "./currency";
+import { currencySchema, currencyInfo, type GameCurrency } from "./currency";
 import type { Card } from "./card";
 import { z } from "zod";
 import {
@@ -89,6 +89,7 @@ export const operationInputSchema = z.object({
     "template",
   ]),
   incomeCategory: z.enum(["employment", "financial", "benefit", "other", "loan"]).default("other"),
+  recoverySurplusAsIncome: z.boolean().optional(),
   title: z.string().trim().min(1, "기록 이름을 입력해 주세요.").max(120),
   date,
   time,
@@ -148,7 +149,21 @@ export const operationSchema = operationInputSchema.safeExtend({
 export type Operation = z.infer<typeof operationSchema>;
 // Actual deposits remain in operationPostings; this amount is for income totals only.
 export function incomeMinor(op: OperationInput): number {
+  if (op.kind === "recovery" && op.recoverySurplusAsIncome) {
+    const allocated = op.allocations.reduce((sum, allocation) => sum + (toMinor(allocation.amount, op.currency) ?? 0), 0);
+    return Math.max(0, (toMinor(op.amount, op.currency) ?? 0) - allocated);
+  }
   return op.kind === "income" && op.incomeCategory !== "loan" ? toMinor(op.amount, op.currency) ?? 0 : 0;
+}
+// A view of income only: recovery deposits are posted once by the original operation.
+export function incomeOperations(operations: readonly Operation[]): Operation[] {
+  return operations.flatMap(op => {
+    if (op.kind === "income") return [op];
+    const surplus = incomeMinor(op);
+    if (surplus <= 0) return [];
+    return [{ ...op, kind: "income" as const, incomeCategory: "other" as const, recoverySurplusAsIncome: undefined,
+      title: `${op.title} · 정산 차액`, amount: (surplus / 10 ** currencyInfo(op.currency).digits).toFixed(currencyInfo(op.currency).digits) }];
+  });
 }
 export type BookData = {
   gameCurrencies?: GameCurrency[];
@@ -575,6 +590,7 @@ export function validateOperations(book: BookData, verifyingId?: string) {
       fail("고정 평가 환율을 확인해 주세요.");
   }
   for (const op of book.operations) {
+    if (op.recoverySurplusAsIncome && op.kind !== "recovery") fail("정산 차액의 기타 수입 처리는 분담금 회수에만 사용할 수 있어요.");
     if (new Set(op.rows.map((r) => r.id)).size !== op.rows.length)
       fail("행 ID가 중복되었어요.");
     if (op.kind === "income") {
@@ -677,7 +693,10 @@ export function validateOperations(book: BookData, verifyingId?: string) {
           }
         }
       }
-      if (sum !== money(op.amount, op.currency))
+      const received = money(op.amount, op.currency);
+      if (op.kind === "recovery" && op.recoverySurplusAsIncome && sum > received)
+        fail("분담금 귀속액이 실제 수령액을 초과해요.");
+      if (!(op.kind === "recovery" && op.recoverySurplusAsIncome) && sum !== received)
         fail("실제 입출금액과 귀속액 합계가 일치해야 정산할 수 있어요.");
     }
     if (op.kind === "transit" || op.kind === "toll") {
