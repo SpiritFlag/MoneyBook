@@ -27,7 +27,7 @@
 | /month?month=YYYY-MM | 일일 소비와 정기지출을 구분한 월간 합계. 보험금·전액 취소 반영 후 금액을 보여준다. |
 | /review | 확인 필요(원화 청구액·명세 초과)와 입출금 대기(분담금·통행료)를 모아 원거래로 연결한다. |
 | /buddy?month=YYYY-MM | 현재 메뉴에서 숨기고 직접 접속도 404. 월별 평가 조회 화면은 재개를 위해 보존한다. |
-| /assets, /assets/new, /assets/[id], /edit | 자산 현황·추가·입출금 원장·환율 수정. 원장은 month=YYYY-MM으로 월별 조회하며 month=all은 전체 거래다. 기본은 한국 시간 이번 달이다. |
+| /assets, /assets/new, /assets/[id], /edit | 자산 현황·추가·입출금 원장·환율 수정. 원장은 month=YYYY-MM으로 월별 조회하며 month=all은 전체 거래다. 기본은 한국 시간 이번 달이다. kind=statement는 명세서 납부 출금, kind=transfer는 자산 이동·충전 기록의 입출금만 표시한다. 기간·종류 필터는 전체 원장의 거래 전후 잔액을 계산한 뒤 적용한다. |
 | /loans, /loans/[id] | 로그인한 계정의 대출 목록·상세. 목록 API는 이력을 제외한 요약, 상세 API는 해당 계정의 대출 한 건을 반환한다. 상환 예정표·납부 이력·대출 조건을 조회하며 실제 자료를 코드에 포함하지 않는다. |
 | /loans/repayments?month=YYYY-MM | 대출노트 상단 원리금 납입. 기본은 한국 시간 이번 달이며 전체 대출의 월별 예정·납입 현황을 한 표에서 조회하고 입력·수정한다. |
 | /api/loans/repayments | 인증된 GET(month): 월별 표와 합계. POST·PUT: 일정 원본 대조·revision·계좌·동일 회차 중복을 검증하여 납입 출금 한 건을 저장한다. |
