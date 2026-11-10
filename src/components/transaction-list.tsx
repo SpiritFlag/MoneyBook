@@ -36,6 +36,7 @@ export function TransactionList({ transactions, date, operations = [], assets = 
       const hasCancellation = cancellationAmount(transaction, operations) > 0;
       const won = netConsumption(transaction, operations);
       const display = dailyExpensePresentation(transaction, date);
+      const separatePayment = display.kind === "normal" && (transaction.paymentDate !== transaction.useDate || transaction.time !== transaction.useTime);
       return <li key={transaction.id} className="px-2 sm:px-3">
         <Link href={`${expenseHref(transaction.id)}?from=${date}`} aria-label={`${transaction.title} 상세 보기`} className={`transaction-link transaction-${display.kind} group flex items-center gap-3 rounded-2xl px-2 py-5 focus-visible:outline-offset-0 sm:gap-5 sm:px-4`}>
         <div className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-20 sm:w-20">
@@ -43,7 +44,8 @@ export function TransactionList({ transactions, date, operations = [], assets = 
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="break-words text-sm font-semibold sm:text-base">{transaction.title}</h3>
-          <p className="mt-2 text-xs leading-6 text-muted-foreground"><span className="tabular-nums">{stamp(display.date, display.time)}</span><span className="mx-2" aria-hidden="true">·</span>{transaction.paymentMethod}<span className="mx-2" aria-hidden="true">·</span>{category.label}</p>
+          <p className="mt-2 text-xs leading-6 text-muted-foreground"><span className="tabular-nums">{display.kind === "normal" || display.kind === "usage-only" ? "이용 " : "결제 "}{stamp(display.date, display.time)}{display.time === null ? " · 시각 미확인" : ""}</span><span className="mx-2" aria-hidden="true">·</span>{transaction.paymentMethod}<span className="mx-2" aria-hidden="true">·</span>{category.label}</p>
+          {separatePayment ? <p className="mt-1 text-xs text-muted-foreground">결제 {stamp(transaction.paymentDate, transaction.time)}{transaction.time === null ? " · 시각 미확인" : ""}</p> : null}
           {hasLoanPrincipal(transaction) ? <p className="mt-1 text-xs text-primary">대출 원금 소비 제외 · 결제 {formatMoney(transaction.paidAmount, transaction.currency)}</p> : null}
           {display.kind !== "normal" ? <p className="transaction-context mt-2 inline-block max-w-full rounded-lg px-3 py-2 text-xs leading-5">{display.kind === "recurring" ? `정기결제　이용 ${transaction.useDate.replaceAll("-", ".")} → ${transaction.useEnd?.replaceAll("-", ".") ?? "종료일 미확인"}` : display.kind === "usage-only" ? `결제 ${stamp(transaction.paymentDate, transaction.time)}` : `이용 ${stamp(transaction.useDate, transaction.useTime)}`}</p> : null}
           {cancelled(transaction.id, operations) ? <p className="mt-1 text-xs text-amber-800">전액 취소</p> : hasCancellation ? <p className="mt-1 text-xs text-amber-800">부분 취소 반영</p> : insuranceRecovered(transaction.id, operations) > 0 ? <p className="mt-1 text-xs text-primary">보험금 반영</p> : null}

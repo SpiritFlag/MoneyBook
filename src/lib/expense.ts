@@ -240,6 +240,7 @@ export function dailyExpensePresentation(value: ExpenseInput, date: string) {
   const paidHere = bookDate(value.paymentDate, value.time) === date;
   const usedHere = bookDate(value.useDate, value.useTime) === date;
   if (usedHere && !paidHere) return { kind: "usage-only", date: value.useDate, time: value.useTime } as const;
+  if (usedHere && paidHere) return { kind: "normal", date: value.useDate, time: value.useTime } as const;
   return { kind: paidHere && !usedHere ? "payment-only" : "normal", date: value.paymentDate, time: value.time } as const;
 }
 export function expenseOrderReferences(values: readonly Expense[], value: ExpenseInput, id?: string) {

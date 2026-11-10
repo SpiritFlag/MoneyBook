@@ -78,9 +78,9 @@ function income(id: string, date: string, time: string | null): Operation {
   return { ...newOperation("income", date), ...meta, id, title: id, amount: "2", time };
 }
 
-test("일일 거래는 기본 결제일·초록 이용 전용·파랑 결제 전용·보라 기간형으로 구분한다", () => {
+test("일일 거래는 같은 날 이용 시각·초록 이용 전용·파랑 결제 전용·보라 기간형으로 구분한다", () => {
   const normal = { ...expense("normal", "2026-10-01", "11:10"), useTime: "12:00" };
-  assert.deepEqual(dailyExpensePresentation(normal, "2026-10-01"), { kind: "normal", date: "2026-10-01", time: "11:10" });
+  assert.deepEqual(dailyExpensePresentation(normal, "2026-10-01"), { kind: "normal", date: "2026-10-01", time: "12:00" });
   const deferred = { ...normal, useDate: "2026-10-02", useTime: "18:00" };
   assert.deepEqual(dailyExpensePresentation(deferred, "2026-10-01"), { kind: "payment-only", date: "2026-10-01", time: "11:10" });
   assert.deepEqual(dailyExpensePresentation(deferred, "2026-10-02"), { kind: "usage-only", date: "2026-10-02", time: "18:00" });
@@ -91,6 +91,23 @@ test("일일 거래는 기본 결제일·초록 이용 전용·파랑 결제 전
   assert.equal(dailyExpensePresentation(dawn, "2026-10-02").kind, "usage-only");
   assert.equal(dailyExpensePresentation({ ...normal, time: null, useTime: null }, "2026-10-01").kind, "normal");
 });
+test("선결제한 승차권은 같은 장부일에 이용 시각의 한 건으로 나타나고 소비도 한 번 반영한다", () => {
+  const ticket = { ...expense("코레일", "2026-11-06", "10:04"), useTime: "13:37", paidAmount: "22400" };
+  const taxi = expense("택시", "2026-11-06", "13:03");
+  const rail = expense("전철", "2026-11-06", "13:04");
+  const rows = dailyRecords(dailyExpenses([ticket, taxi, rail], "2026-11-06"), [], "2026-11-06");
+  assert.deepEqual(rows.map(row => row.id), ["택시", "전철", "코레일"]);
+  assert.deepEqual(dailyExpensePresentation(ticket, "2026-11-06"), { kind: "normal", date: "2026-11-06", time: "13:37" });
+  assert.equal(daySummary([ticket], "2026-11-06").total, 22400);
+  const nextDay = { ...ticket, useDate: "2026-11-07" };
+  assert.equal(daySummary([nextDay], "2026-11-06").total, 0);
+  assert.equal(daySummary([nextDay], "2026-11-07").total, 22400);
+  // The displayed date is the actual use date even across midnight within one 05:00 ledger day.
+  const midnight = { ...ticket, useDate: "2026-11-07", useTime: "01:00" };
+  assert.deepEqual(dailyExpensePresentation(midnight, "2026-11-06"), { kind: "normal", date: "2026-11-07", time: "01:00" });
+  assert.deepEqual(dailyExpensePresentation({ ...ticket, useTime: null }, "2026-11-06"), { kind: "normal", date: "2026-11-06", time: null });
+});
+
 test("한국 시간 05시와 월·연 경계, 미확인 시각을 구분한다", () => {
   assert.equal(todayInBook(new Date("2026-10-01T04:59:59+09:00")), "2026-09-30");
   assert.equal(todayInBook(new Date("2026-10-01T05:00:00+09:00")), "2026-10-01");
