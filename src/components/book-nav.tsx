@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { features } from "@/lib/features";
-import { BookOpen, CalendarDays, Plus, Wallet, ArrowLeftRight, CreditCard, HandCoins, Bus, Bookmark, CircleArrowDown, Landmark, MessageCircle, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, Plus, Wallet, ArrowLeftRight, CreditCard, HandCoins, Bus, Bookmark, CircleArrowDown, Landmark, MessageCircle, Trash2, Search } from "lucide-react";
 const links = [
   { href: "/", label: "일일 내역", icon: BookOpen }, { href: "/month", label: "월간 소비", icon: CalendarDays },
+  { href: "/search", label: "내역 검색", icon: Search },
   ...(features.buddyReviews ? [{ href: "/buddy", label: "버디의 평가", icon: MessageCircle }] : []),
   { href: "/transactions/new", label: "지출 기록", icon: Plus }, { href: "/recurring", label: "반복 거래 관리", icon: CalendarDays }, { href: "/assets", label: "자산 현황", icon: Wallet },
   { href: "/loans", label: "대출 노트", icon: Landmark },
