@@ -18,6 +18,11 @@ export type CardActivity = {
   draft?: Operation;
 };
 
+export function cardStatements(card: Card, book: BookData) {
+  return book.operations.filter(op => op.kind === "statement" && op.card === card.name)
+    .sort((a, b) => b.month.localeCompare(a.month) || b.updatedAt.localeCompare(a.updatedAt));
+}
+
 // Approval dates and full payment amounts are independent of usage dates and personal shares.
 export function cardActivity(card: Card, book: BookData, start = "", end = ""): CardActivity[] {
   const statements = book.operations.filter(op => op.kind === "statement" && op.card === card.name)

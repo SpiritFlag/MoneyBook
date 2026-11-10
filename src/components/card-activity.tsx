@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Card } from "@/lib/card";
-import { cardActivity } from "@/lib/card-activity";
+import { cardActivity, cardStatements } from "@/lib/card-activity";
 import { parseDateQuery } from "@/lib/date";
 import type { BookData } from "@/lib/operations";
 import { useBook } from "@/lib/use-operations";
@@ -24,8 +24,7 @@ export function CardActivityView({ card, book, today }: { card: Card; book: Book
   const [start, setStart] = useState(""), [end, setEnd] = useState("");
   const invalid = !!((start && !parseDateQuery(start)) || (end && !parseDateQuery(end)) || (start && end && start > end));
   const rows = invalid ? [] : cardActivity(card, book, start, end);
-  const statements = book.operations.filter(op => op.kind === "statement" && op.card === card.name)
-    .sort((a, b) => b.month.localeCompare(a.month) || b.updatedAt.localeCompare(a.updatedAt));
+  const statements = cardStatements(card, book);
   const draft = statements.find(op => !op.verified);
   const statementQuery = new URLSearchParams({ kind: "statement", card: card.id, date: today });
   if (start && !invalid) statementQuery.set("start", start);
