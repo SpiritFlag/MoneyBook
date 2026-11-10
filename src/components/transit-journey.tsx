@@ -12,16 +12,18 @@ function JourneyStop({ tap, label, charged = true, first = false, last = false, 
   tap: TransitTap; label: string; charged?: boolean; first?: boolean; last?: boolean; connects?: boolean;
 }) {
   const fare = transitFare(tap);
+  const details = [
+    ["기본운임", fare.base], ["거리초과운임", fare.distance],
+    [`특별요금${fare.special ? ` · ${tap.cause || "원인 미입력"}` : ""}`, fare.special],
+  ] as const;
   return <div className={`${styles.stop} ${first ? styles.first : ""} ${last ? styles.last : ""} ${connects ? styles.connects : ""}`}>
     {charged ? <time className={styles.time}>{tap.time ?? "시각 미확인"}</time> : <span className={styles.time}>—</span>}
     <i aria-hidden="true" className={styles.dot} />
     <div className={styles.stopContent}>
       <div className={styles.stopLine}><strong>{tap.place || "장소 미입력"}</strong>{charged ? <b>{formatMinor(fare.total, "KRW")}</b> : null}</div>
       <p className={styles.action}>{label}</p>
-      {charged ? <ul className={styles.branches}>
-        <li><span>기본운임</span><span>{formatMinor(fare.base, "KRW")}</span></li>
-        <li><span>거리초과운임</span><span>{formatMinor(fare.distance, "KRW")}</span></li>
-        <li><span>특별요금{fare.special ? ` · ${tap.cause || "원인 미입력"}` : ""}</span><span>{formatMinor(fare.special, "KRW")}</span></li>
+      {charged && fare.total > 0 ? <ul className={styles.branches}>
+        {details.filter(([, amount]) => amount !== 0).map(([name, amount]) => <li key={name}><span>{name}</span><span>{formatMinor(amount, "KRW")}</span></li>)}
       </ul> : null}
     </div>
   </div>;
@@ -55,6 +57,6 @@ export function TransitJourney({ legs }: { legs: readonly TransitLeg[] }) {
     <dl className="space-y-2 rounded-xl bg-secondary/50 p-4 text-sm">{([
       ["기본운임", totals.base], ["거리초과운임", totals.distance], ["특별요금", totals.special],
       ...totals.causes.map(cause => [`↳ ${cause.name}`, cause.amount] as const), ["교통비 합계", totals.total],
-    ] as const).map(([name, value]) => <div key={name} className="flex justify-between gap-3"><dt>{name}</dt><dd className="font-semibold tabular-nums">{formatMinor(value as number, "KRW")}</dd></div>)}</dl>
+    ] as const).filter(([name, value]) => name === "교통비 합계" || value !== 0).map(([name, value]) => <div key={name} className="flex justify-between gap-3"><dt>{name}</dt><dd className="font-semibold tabular-nums">{formatMinor(value as number, "KRW")}</dd></div>)}</dl>
   </section>;
 }
