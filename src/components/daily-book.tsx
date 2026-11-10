@@ -28,8 +28,8 @@ export function DailyBook({ initialDate }: { initialDate: string }) {
   const { total, pending } = daySummary(book ? consumptionRecords(book.expenses, book.operations) : [], date);
 
   return <>
-    <header className="mb-7 flex items-start justify-between gap-4">
-      <div><p className="mb-2 text-xs font-semibold tracking-widest text-primary">하루하루, 차곡차곡</p><h1 className="text-3xl font-bold tracking-tight">일일 내역</h1><p className="mt-3 text-sm text-muted-foreground">하루의 수입과 지출, 그 이야기를 살펴보세요.</p></div>
+    <header className="mb-5 flex items-center justify-between gap-4">
+      <h1 className="text-2xl font-bold tracking-tight">일일 내역</h1>
       <Button asChild><Link href={`/transactions/new?date=${date}`}>지출 기록</Link></Button>
     </header>
     <section aria-label="선택한 날짜의 내역" className="book-sheet rounded-3xl bg-card pb-0.5">

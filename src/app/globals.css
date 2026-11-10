@@ -23,7 +23,71 @@
 
 /* 선 대신 종이의 밝기와 부드러운 음영으로 영역을 구분합니다. */
 .book-sidebar {
-  background: linear-gradient(165deg, #e8efe2 0%, #f4f2e7 58%, #f6ead9 100%);
+  background: #edf0e7;
+}
+/* 탐색 영역만 정리합니다. 거래 행·캐릭터·영수증 스타일은 별도로 유지합니다. */
+.book-workspace { min-height: calc(100vh - 52px); }
+.book-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 20; width: 240px; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #dfe5d9; }
+.book-brand { display: flex; align-items: center; gap: 12px; padding: 26px 22px 22px; }
+.book-record-entry { padding: 0 20px 22px; }
+.record-action { display: flex; position: relative; border-radius: 12px; background: var(--primary); color: var(--primary-foreground); }
+.record-action > a { display: flex; flex: 1; align-items: center; justify-content: center; gap: 9px; padding: 12px 10px; font-size: 14px; font-weight: 600; }
+.record-action > details > summary { list-style: none; display: grid; place-items: center; min-width: 42px; height: 100%; min-height: 45px; border-left: 1px solid #ffffff35; }
+.record-action summary::-webkit-details-marker, .mobile-book-nav summary::-webkit-details-marker { display: none; }
+.record-options { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; border: 1px solid var(--border); border-radius: 12px; padding: 6px; background: var(--card); color: var(--foreground); box-shadow: 0 8px 26px #303c3320; }
+.record-options a { display: flex; align-items: center; gap: 8px; padding: 11px 7px; font-size: 12px; border-radius: 7px; }
+.record-options a:hover { background: var(--secondary); }
+.desktop-book-nav { padding: 0 14px; }
+.book-nav-group + .book-nav-group { margin-top: 24px; }
+.book-nav-label { margin: 0 12px 8px; font-size: 11px; font-weight: 600; color: var(--muted-foreground); letter-spacing: .08em; }
+.book-nav-link { display: flex; align-items: center; gap: 10px; min-height: 43px; padding: 10px 12px; margin-top: 3px; font-size: 14px; border-radius: 10px; color: #5f6c60; }
+.book-nav-link svg { flex-shrink: 0; }
+.book-nav-link:hover { background: #ffffff80; }
+.book-nav-link[aria-current="page"] { background: var(--card); color: var(--primary); font-weight: 600; box-shadow: 0 1px 3px #303c3308; }
+.book-nav-tools { margin-top: 26px; padding-top: 12px; border-top: 1px solid #dbe2d5; }
+.book-sidebar-footer { margin-top: auto; padding: 26px; font-size: 12px; color: var(--muted-foreground); }
+.book-main { min-width: 0; margin-left: 240px; padding: 18px 40px 48px; }
+.book-account-bar { margin-left: 240px; min-height: 52px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 10px 30px; font-size: 12px; color: var(--muted-foreground); }
+.book-section-nav { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-bottom: 26px; border-bottom: 1px solid var(--border); }
+.book-section-nav a { padding: 0 0 12px; font-size: 13px; color: var(--muted-foreground); border-bottom: 2px solid transparent; }
+.book-section-nav a[aria-current="page"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.book-section-nav a:hover { color: var(--primary); }
+.mobile-book-nav { display: none; }
+.review-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 26px; }
+.review-summary > div { padding: 22px 24px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; }
+.review-group { margin-top: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
+.review-group > header { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.review-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 24px; }
+.review-row:hover { background: var(--accent); }
+.review-group li + li { border-top: 1px solid var(--border); }
+.review-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 26px; }
+.review-shortcuts a { padding: 16px; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; color: var(--primary); }
+.review-shortcuts a:hover { background: var(--card); }
+@media (min-width: 1024px) { .book-main { padding-inline: 56px; } }
+@media (max-width: 767px) {
+  .book-workspace { min-height: auto; }
+  .book-sidebar { position: static; width: auto; overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: minmax(0,1fr) 132px; align-items: center; }
+  .book-brand { padding: 16px; gap: 9px; }
+  .book-brand p:last-child { display: none; }
+  .book-record-entry { padding: 0 14px 0 0; }
+  .record-action > a { gap: 4px; font-size: 12px; padding-inline: 5px; }
+  .record-action > details > summary { min-width: 30px; }
+  .record-options { left: auto; width: 200px; }
+  .book-account-bar { margin-left: 0; padding: 8px 16px; min-height: 42px; }
+  .desktop-book-nav, .book-sidebar-footer { display: none; }
+  .mobile-book-nav { display: block; grid-column: 1 / -1; padding: 0 16px 14px; }
+  .mobile-book-nav > summary { display: flex; justify-content: space-between; align-items: center; list-style: none; gap: 12px; min-height: 44px; font-size: 14px; }
+  .mobile-book-nav > summary > span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted-foreground); }
+  .mobile-book-nav nav { padding: 16px 0 4px; }
+  .book-nav-group + .book-nav-group { margin-top: 18px; }
+  .book-main { margin-left: 0; padding: 22px 16px 40px; }
+  .book-section-nav { gap: 4px 18px; margin-bottom: 22px; }
+  .book-section-nav a { padding-top: 8px; }
+  .review-summary { gap: 10px; }
+  .review-summary > div { padding: 16px; }
+  .review-row { align-items: flex-start; padding: 16px; gap: 12px; flex-wrap: wrap; }
+  .review-group > header { padding: 18px 16px; }
+  .review-shortcuts { grid-template-columns: 1fr; }
 }
 .book-sheet {
   box-shadow: 0 12px 45px -24px #6b654533, 0 2px 8px -5px #6b65451a;
